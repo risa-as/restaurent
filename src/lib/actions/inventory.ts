@@ -1,158 +1,152 @@
 'use server';
-/* eslint-disable @typescript-eslint/no-unused-vars */
 
+import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { prisma } from '@/lib/prisma'; // Ensure this points to your prisma instance
-import { rawMaterialSchema, RawMaterialFormValues, transactionSchema, TransactionFormValues } from '@/lib/validations/inventory';
-import { redirect } from 'next/navigation';
+import { TransactionType } from '@prisma/client';
 
-export async function getRawMaterials(query?: string) {
+// --- Raw Materials (Stock) ---
+
+export async function getRawMaterials() {
     try {
-        const rawMaterials = await prisma.rawMaterial.findMany({
-            where: {
-                name: {
-                    contains: query,
-                    mode: 'insensitive',
-                },
-            },
-            orderBy: {
-                updatedAt: 'desc',
-            },
+        return await prisma.rawMaterial.findMany({
+            orderBy: { name: 'asc' }
         });
-        return rawMaterials;
     } catch (error) {
-        console.error('Failed to fetch raw materials:', error);
-        throw new Error('Failed to fetch raw materials.');
+        return [];
     }
 }
 
-export async function createRawMaterial(data: RawMaterialFormValues) {
-    const validatedFields = rawMaterialSchema.safeParse(data);
-
-    if (!validatedFields.success) {
-        return {
-            error: 'Invalid fields',
-        };
-    }
-
+export async function createRawMaterial(data: { name: string; unit: string; minStockLevel: number; costPerUnit: number; currentStock: number }) {
     try {
         await prisma.rawMaterial.create({
-            data: validatedFields.data,
+            data: {
+                name: data.name,
+                unit: data.unit,
+                minStockLevel: data.minStockLevel,
+                costPerUnit: data.costPerUnit,
+                currentStock: data.currentStock
+            }
         });
+        revalidatePath('/inventory/stock');
+        return { success: true };
     } catch (error) {
-        console.error('Failed to create raw material:', error);
-        return {
-            error: 'Failed to create raw material.',
-        };
+        return { error: 'Failed to create material' };
     }
-
-    revalidatePath('/dashboard/inventory');
-    return { success: true };
 }
 
-export async function updateRawMaterial(id: string, data: RawMaterialFormValues) {
-    const validatedFields = rawMaterialSchema.safeParse(data);
-
-    if (!validatedFields.success) {
-        return {
-            error: 'Invalid fields',
-        };
-    }
-
+export async function updateRawMaterial(id: string, data: any) {
     try {
         await prisma.rawMaterial.update({
             where: { id },
-            data: validatedFields.data,
+            data
         });
+        revalidatePath('/inventory/stock');
+        return { success: true };
     } catch (error) {
-        console.error('Failed to update raw material:', error);
-        return {
-            error: 'Failed to update raw material.',
-        };
+        return { error: 'Failed to update material' };
     }
-
-    revalidatePath('/dashboard/inventory');
-    return { success: true };
 }
 
 export async function deleteRawMaterial(id: string) {
     try {
-        await prisma.rawMaterial.delete({
-            where: { id },
-        });
+        await prisma.rawMaterial.delete({ where: { id } });
+        revalidatePath('/inventory/stock');
+        return { success: true };
     } catch (error) {
-        console.error('Failed to delete raw material:', error);
-        return {
-            error: 'Failed to delete raw material.',
-        };
+        return { error: 'Failed to delete material' };
     }
-
-    revalidatePath('/dashboard/inventory');
-    return { success: true };
 }
 
-export async function createTransaction(data: TransactionFormValues) {
-    const validatedFields = transactionSchema.safeParse(data);
+// --- Transactions ---
 
-    if (!validatedFields.success) {
-        return { error: 'Invalid fields' };
-    }
-
-    const { materialId, type, quantity, cost, notes } = validatedFields.data;
-
+export async function createTransaction(data: {
+    materialId: string;
+    type: TransactionType;
+    quantity: number;
+    cost?: number;
+    notes?: string;
+}) {
     try {
-        await prisma.$transaction(async (tx) => {
-            // 1. Create Transaction Record
-            await tx.inventoryTransaction.create({
-                data: {
-                    materialId,
-                    type,
-                    quantity,
-                    cost,
-                    notes,
-                },
-            });
-
-            // 2. Update Stock Level
-            const material = await tx.rawMaterial.findUnique({ where: { id: materialId } });
-            if (!material) throw new Error('Material not found');
-
-            let newStock = material.currentStock;
-
-            if (type === 'PURCHASE' || type === 'ADJUSTMENT') {
-                newStock += quantity;
-            } else if (type === 'USAGE' || type === 'WASTE') {
-                newStock -= quantity;
+        // 1. Create Transaction
+        await prisma.inventoryTransaction.create({
+            data: {
+                materialId: data.materialId,
+                type: data.type,
+                quantity: data.quantity,
+                cost: data.cost,
+                notes: data.notes
             }
-
-            await tx.rawMaterial.update({
-                where: { id: materialId },
-                data: { currentStock: newStock },
-            });
         });
-    } catch (error) {
-        console.error('Failed to create transaction:', error);
-        return { error: 'Failed to process transaction.' };
-    }
 
-    revalidatePath('/dashboard/inventory');
-    revalidatePath('/dashboard/inventory/transactions');
-    return { success: true };
+        // 2. Update Stock
+        let stockChange = 0;
+        if (data.type === 'PURCHASE') {
+            stockChange = data.quantity;
+        } else if (data.type === 'USAGE' || data.type === 'WASTE') {
+            stockChange = -data.quantity;
+        } else if (data.type === 'ADJUSTMENT') {
+            // Treat as additive adjustment
+            stockChange = data.quantity;
+        }
+
+        if (stockChange !== 0) {
+            await prisma.rawMaterial.update({
+                where: { id: data.materialId },
+                data: {
+                    currentStock: { increment: stockChange }
+                }
+            });
+        }
+
+        revalidatePath('/inventory/stock');
+        return { success: true };
+    } catch (error) {
+        console.error("Transaction Error:", error);
+        return { error: 'Failed to create transaction' };
+    }
 }
 
-export async function getTransactions() {
+
+// --- Recipes ---
+
+export async function getRecipes() {
     try {
-        const transactions = await prisma.inventoryTransaction.findMany({
+        return await prisma.menuItem.findMany({
             include: {
-                material: true,
+                recipe: {
+                    include: { material: true }
+                },
+                category: true
             },
-            orderBy: {
-                transactionDate: 'desc',
-            },
+            orderBy: { name: 'asc' }
         });
-        return transactions;
     } catch (error) {
-        console.error('Failed to fetch transactions:', error);
-        throw new Error('Failed to fetch transactions');
+        return [];
+    }
+}
+
+export async function addRecipeItem(menuItemId: string, materialId: string, quantity: number) {
+    try {
+        await prisma.recipeItem.create({
+            data: {
+                menuItemId,
+                materialId,
+                quantity
+            }
+        });
+        revalidatePath('/kitchen/recipes');
+        return { success: true };
+    } catch (error) {
+        return { error: 'Failed to add recipe item' };
+    }
+}
+
+export async function removeRecipeItem(id: string) {
+    try {
+        await prisma.recipeItem.delete({ where: { id } });
+        revalidatePath('/kitchen/recipes');
+        return { success: true };
+    } catch (error) {
+        return { error: 'Failed to remove recipe item' };
     }
 }

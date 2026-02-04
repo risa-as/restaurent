@@ -17,7 +17,7 @@ export default async function ReservationsPage() {
                     <p className="text-muted-foreground">{format(new Date(), 'PPPP', { locale: ar })}</p>
                 </div>
 
-                <AddReservationSheet />
+                <AddReservationSheet tables={tables} />
             </div>
 
             <ReservationList reservations={reservations} tables={tables} />

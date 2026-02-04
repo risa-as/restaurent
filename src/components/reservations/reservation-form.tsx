@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTransition } from 'react';
 import { ReservationFormValues, reservationSchema } from '@/lib/validations/reservations';
-import { createReservation } from '@/lib/actions/reservations';
+import { Table } from '@prisma/client';
+import { createReservation, updateReservation } from '@/lib/actions/reservations';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,13 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     Popover,
     PopoverContent,
     PopoverTrigger,
@@ -29,39 +37,52 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { SheetFooter } from '@/components/ui/sheet';
 
+import { useRouter } from 'next/navigation';
+
 interface ReservationFormProps {
     onSuccess: () => void;
+    initialData?: ReservationFormValues & { id?: string };
+    tables?: Table[];
 }
 
-export function ReservationForm({ onSuccess }: ReservationFormProps) {
+export function ReservationForm({ onSuccess, initialData, tables = [] }: ReservationFormProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+    const router = useRouter();
 
     const form = useForm<ReservationFormValues>({
         resolver: zodResolver(reservationSchema) as any,
-        defaultValues: {
+        defaultValues: initialData || {
             customerName: '',
             customerPhone: '',
             guests: 2,
             reservationTime: new Date(),
             notes: '',
+            tableId: '',
         } as ReservationFormValues,
     });
 
     function onSubmit(data: ReservationFormValues) {
         startTransition(async () => {
-            const res = await createReservation(data);
+            let res;
+            if (initialData?.id) {
+                res = await updateReservation(initialData.id, data);
+            } else {
+                res = await createReservation(data);
+            }
+
             if (res.success) {
                 toast({
-                    title: "تم إنشاء الحجز بنجاح",
+                    title: initialData ? "تم تحديث الحجز" : "تم إنشاء الحجز بنجاح",
                     description: `للسيد/ة ${data.customerName}`,
                 });
-                form.reset();
+                if (!initialData) form.reset();
+                router.refresh();
                 onSuccess();
             } else {
                 toast({
                     variant: "destructive",
-                    title: "فشل إنشاء الحجز",
+                    title: initialData ? "فشل تحديث الحجز" : "فشل إنشاء الحجز",
                 });
             }
         });
@@ -111,6 +132,32 @@ export function ReservationForm({ onSuccess }: ReservationFormProps) {
                         )}
                     />
                 </div>
+
+                <FormField
+                    control={form.control as any}
+                    name="tableId"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>تعيين طاولة (اختياري)</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger dir="rtl">
+                                        <SelectValue placeholder="اختر طاولة" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="none">بدون طاولة</SelectItem>
+                                    {tables.map(table => (
+                                        <SelectItem key={table.id} value={table.id}>
+                                            طاولة {table.number} ({table.capacity} مقاعد)
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
                 <FormField
                     control={form.control as any}
@@ -191,7 +238,9 @@ export function ReservationForm({ onSuccess }: ReservationFormProps) {
                     )}
                 />
                 <SheetFooter>
-                    <Button type="submit" disabled={isPending}>{isPending ? 'جاري الحفظ...' : 'إنشاء الحجز'}</Button>
+                    <Button type="submit" disabled={isPending}>
+                        {isPending ? 'جاري الحفظ...' : initialData ? 'تحديث الحجز' : 'إنشاء الحجز'}
+                    </Button>
                 </SheetFooter>
             </form>
         </Form>

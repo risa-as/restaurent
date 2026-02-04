@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTransition } from 'react';
 import { CategoryFormValues, categorySchema } from '@/lib/validations/menu';
-import { createCategory } from '@/lib/actions/menu';
+import { Category } from '@prisma/client';
+import { createCategory, updateCategory } from '@/lib/actions/menu';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,44 +17,45 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import { DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { DialogFooter } from '@/components/ui/dialog';
 
 interface CategoryFormProps {
+    initialData?: Category;
     onSuccess: () => void;
 }
 
-export function CategoryForm({ onSuccess }: CategoryFormProps) {
+export function CategoryForm({ initialData, onSuccess }: CategoryFormProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
     const form = useForm<CategoryFormValues>({
         resolver: zodResolver(categorySchema),
         defaultValues: {
-            name: '',
-            type: 'EASTERN',
+            name: initialData?.name || '',
         },
     });
 
     function onSubmit(data: CategoryFormValues) {
         startTransition(async () => {
-            const res = await createCategory(data);
+            let res;
+            if (initialData) {
+                res = await updateCategory(initialData.id, data);
+            } else {
+                res = await createCategory(data);
+            }
+
             if (res.success) {
                 toast({
-                    title: "تم إنشاء القسم بنجاح",
+                    title: initialData ? "تم تحديث القسم بنجاح" : "تم إنشاء القسم بنجاح",
                 });
-                form.reset();
+                if (!initialData) {
+                    form.reset();
+                }
                 onSuccess();
             } else {
                 toast({
                     variant: "destructive",
-                    title: "فشل إنشاء القسم",
+                    title: initialData ? "فشل تحديث القسم" : "فشل إنشاء القسم",
                 });
             }
         });
@@ -75,31 +77,10 @@ export function CategoryForm({ onSuccess }: CategoryFormProps) {
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="type"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>النوع</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="اختر النوع" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="EASTERN">شرقي</SelectItem>
-                                    <SelectItem value="WESTERN">غربي</SelectItem>
-                                    <SelectItem value="BEVERAGE">مشروبات</SelectItem>
-                                    <SelectItem value="DESSERT">حلويات</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
                 <DialogFooter>
-                    <Button type="submit" disabled={isPending}>انشاء قسم</Button>
+                    <Button type="submit" disabled={isPending}>
+                        {isPending ? 'جاري الحفظ...' : initialData ? 'تحديث القسم' : 'انشاء قسم'}
+                    </Button>
                 </DialogFooter>
             </form>
         </Form>

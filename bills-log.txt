@@ -1,0 +1,149 @@
+--- Recent Bills ---
+ID: cml7f3dkz001ac7rc4pcm6a3q
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml7ei6c4000jc7rctcspllvi
+Amount: 15000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6mfptb0001c7fcqnim5rko
+Amount: 12000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6eekf90040c7qkp4vql8u9
+Amount: 28000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6dhxiy003sc7qkrlqnud9r
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6d29s7003dc7qko2uzkg3h
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6d1w270036c7qks18xrkvx
+Amount: 29000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6cgg3w002wc7qk6l4bnx5d
+Amount: 12000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6cbpww002mc7qklqi3uvdc
+Amount: 28000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6cbhur002ec7qk5zx9r2uo
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6c8waw0021c7qkj0d47nvg
+Amount: 15000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6c5jfr001ec7qkjoso9h6o
+Amount: 28000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6c59oh0016c7qknbzl7tnx
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: NO
+--------------------
+ID: cml6bztbz000zc7qkoimlzyij
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6bzspr000xc7qk973qwygj
+Amount: 43000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6byt5s000vc7qkoa3wdfsz
+Amount: 12000
+Method: CASH
+Settled: false
+Order Status: COMPLETED
+Delivery: YES
+  - Cash Handed Over: true
+--------------------
+ID: cml6bow1v0007c7qk9fov32ii
+Amount: 30000
+Method: CASH
+Settled: false
+Order Status: SERVED
+Delivery: NO
+--------------------
+ID: cml6bl4r6001pc7lg4qy3n2x1
+Amount: 13000
+Method: CASH
+Settled: false
+Order Status: SERVED
+Delivery: NO
+--------------------
+ID: cml6ai2fr000ec7lgd3ju5kro
+Amount: 16000
+Method: CASH
+Settled: false
+Order Status: SERVED
+Delivery: NO
+--------------------
+ID: cml6ahohn0007c7lgzepfkxxb
+Amount: 28000
+Method: CASH
+Settled: false
+Order Status: SERVED
+Delivery: NO
+--------------------

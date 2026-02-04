@@ -1,0 +1,15 @@
+--- Current Categories ---
+مأكولات شرقية: EASTERN
+مقبلات: EASTERN
+مأكولات غربية: WESTERN
+حلويات: DESSERT
+مشروبات ساخنة: BEVERAGE
+--------------------------
+
+--- Updated Categories ---
+مأكولات شرقية: EASTERN
+مقبلات: EASTERN
+مأكولات غربية: WESTERN
+حلويات: DESSERT
+مشروبات ساخنة: BEVERAGE
+--------------------------

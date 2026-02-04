@@ -31,7 +31,9 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useState } from 'react';
-import { Ban, CheckCircle } from 'lucide-react';
+import { Ban, CheckCircle, Pencil } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { ReservationForm } from './reservation-form';
 
 interface ReservationListProps {
     reservations: (Reservation & { table: Table | null })[];
@@ -39,7 +41,6 @@ interface ReservationListProps {
 }
 
 export function ReservationList({ reservations, tables }: ReservationListProps) {
-    const availableTables = tables.filter(t => t.status === 'AVAILABLE' || t.status === 'RESERVED');
 
     return (
         <div className="border rounded-md">
@@ -85,7 +86,8 @@ export function ReservationList({ reservations, tables }: ReservationListProps) 
                                 <TableCell className="text-left gap-2 flex justify-end">
                                     {res.status === 'CONFIRMED' && (
                                         <>
-                                            <CheckInDialog reservation={res} tables={availableTables} />
+                                            <CheckInDialog reservation={res} tables={tables} />
+                                            <EditReservationSheet reservation={res as any} tables={tables} />
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -130,11 +132,25 @@ function CheckInDialog({ reservation, tables }: { reservation: Reservation, tabl
                             <SelectValue placeholder="اختر طاولة" />
                         </SelectTrigger>
                         <SelectContent>
-                            {tables.map(t => (
-                                <SelectItem key={t.id} value={t.id}>
-                                    طاولة {t.number} ({t.capacity} شخص)
-                                </SelectItem>
-                            ))}
+                            {tables.length === 0 ? (
+                                <div className="p-2 text-center text-sm text-muted-foreground">لا توجد طاولات</div>
+                            ) : (
+                                tables.map(t => {
+                                    const isAvailable = t.status === 'AVAILABLE';
+                                    return (
+                                        <SelectItem key={t.id} value={t.id} disabled={!isAvailable}>
+                                            <div className="flex items-center justify-between w-full min-w-[120px]">
+                                                <span>طاولة {t.number} ({t.capacity} شخص)</span>
+                                                <span className="text-xs text-muted-foreground ml-2">
+                                                    {t.status === 'AVAILABLE' ? '(متاح)' :
+                                                        t.status === 'OCCUPIED' ? '(مشغول)' :
+                                                            t.status === 'RESERVED' ? '(محجوز)' : '(تنظيف)'}
+                                                </span>
+                                            </div>
+                                        </SelectItem>
+                                    );
+                                })
+                            )}
                         </SelectContent>
                     </Select>
                 </div>
@@ -143,6 +159,8 @@ function CheckInDialog({ reservation, tables }: { reservation: Reservation, tabl
                         if (selectedTable) {
                             await checkInReservation(reservation.id, selectedTable);
                             setOpen(false);
+                            // Also refresh to show updated status
+                            window.location.reload();
                         }
                     }}>
                         تأكيد التسكين
@@ -151,4 +169,37 @@ function CheckInDialog({ reservation, tables }: { reservation: Reservation, tabl
             </DialogContent>
         </Dialog>
     )
+}
+
+
+
+function EditReservationSheet({ reservation, tables }: { reservation: Reservation, tables: Table[] }) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                    <Pencil className="h-4 w-4" />
+                </Button>
+            </SheetTrigger>
+            <SheetContent className="sm:max-w-md overflow-y-auto">
+                <SheetHeader>
+                    <SheetTitle>تعديل الحجز</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                    <ReservationForm
+                        onSuccess={() => setOpen(false)}
+                        tables={tables}
+                        initialData={{
+                            ...reservation,
+                            reservationTime: new Date(reservation.reservationTime),
+                            notes: reservation.notes || '',
+                            tableId: reservation.tableId || '',
+                        }}
+                    />
+                </div>
+            </SheetContent>
+        </Sheet>
+    );
 }

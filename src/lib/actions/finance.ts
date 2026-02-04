@@ -1,129 +1,172 @@
 'use server';
-/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { prisma } from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
 
-const expenseSchema = z.object({
-    description: z.string().min(2),
-    amount: z.coerce.number().min(0.01),
-    category: z.string().min(2),
-    date: z.coerce.date().default(new Date()),
-});
+export interface FinancialStats {
+    revenue: number;
+    transactionCount: number;
+    cogs: number; // Cost of Goods Sold
+    expenses: number;
+    netProfit: number;
+    expenseList: any[];
+    orderList: any[];
+    salesByDate: { date: string; amount: number }[];
+    salesByCategory: { name: string; value: number }[];
+}
 
-export type ExpenseInput = z.infer<typeof expenseSchema>;
+export async function getFinancialStats(from: Date, to: Date): Promise<FinancialStats> {
+    noStore();
 
-export async function addExpense(data: ExpenseInput) {
-    const validated = expenseSchema.safeParse(data);
-    if (!validated.success) return { error: "بيانات غير صالحة" };
+    // Ensure we cover the full range of the end date
+    const startDate = new Date(from);
+    startDate.setHours(0, 0, 0, 0);
 
+    const endDate = new Date(to);
+    endDate.setHours(23, 59, 59, 999);
+
+    try {
+        // 1. Fetch Completed Orders descending by date
+        const orders = await prisma.order.findMany({
+            where: {
+                status: { in: ['COMPLETED', 'SERVED'] }, // Include served if paid? Usually COMPLETED means paid. Let's assume COMPLETED.
+                OR: [
+                    { status: 'COMPLETED' },
+                    // If your workflow uses SERVED for paid but not closed, include it. Best to check Bill existence.
+                ],
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate
+                }
+            },
+            include: {
+                items: {
+                    include: {
+                        menuItem: {
+                            include: {
+                                category: true
+                            }
+                        }
+                    }
+                },
+                bills: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // 2. Calculate Revenue & COGS
+        let revenue = 0;
+        let cogs = 0;
+        const categorySales: Record<string, number> = {};
+        const dateSales: Record<string, number> = {};
+
+        for (const order of orders) {
+            // Revenue from Bills (Actual paid amount)
+            const orderTotal = order.bills.reduce((acc, bill) => acc + bill.amount, 0);
+            // Fallback to order totalAmount if no bills (legacy)
+            const finalOrderAmount = orderTotal > 0 ? orderTotal : order.totalAmount;
+
+            revenue += finalOrderAmount;
+
+            // COGS from Items
+            for (const item of order.items) {
+                const itemCost = item.cost * item.quantity; // Assuming cost is snapshotted on OrderItem
+                cogs += itemCost;
+
+                // Category Sales
+                const catName = item.menuItem.category.name;
+                categorySales[catName] = (categorySales[catName] || 0) + item.totalPrice;
+            }
+
+            // Date Sales (Daily aggregation)
+            const dateKey = order.createdAt.toISOString().split('T')[0];
+            dateSales[dateKey] = (dateSales[dateKey] || 0) + finalOrderAmount;
+        }
+
+        // 3. Fetch Expenses
+        const expenses = await prisma.expense.findMany({
+            where: {
+                date: {
+                    gte: startDate,
+                    lte: endDate
+                }
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        const totalExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0);
+
+        // 4. Group Data for Charts
+        const salesByDate = Object.entries(dateSales).map(([date, amount]) => ({
+            date,
+            amount
+        })).sort((a, b) => a.date.localeCompare(b.date));
+
+        const salesByCategory = Object.entries(categorySales).map(([name, value]) => ({
+            name,
+            value
+        }));
+
+        return {
+            revenue,
+            transactionCount: orders.length,
+            cogs,
+            expenses: totalExpenses,
+            netProfit: revenue - cogs - totalExpenses,
+            expenseList: expenses,
+            orderList: orders,
+            salesByDate,
+            salesByCategory
+        };
+
+    } catch (error) {
+        console.error("Failed to fetch financial stats", error);
+        return {
+            revenue: 0,
+            transactionCount: 0,
+            cogs: 0,
+            expenses: 0,
+            netProfit: 0,
+            expenseList: [],
+            orderList: [],
+            salesByDate: [],
+            salesByCategory: []
+        };
+    }
+}
+
+// Keep the old function for compatibility if needed, using default 30 days
+
+export async function getFinancialSummary() {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return await getFinancialStats(start, end);
+}
+
+export async function addExpense(data: { description: string; amount: number; category: string; date: Date }) {
     try {
         await prisma.expense.create({
             data: {
-                ...validated.data,
-                recordedBy: "النظام", // Or user ID if auth context exists
+                ...data,
+                recordedBy: 'SYSTEM' // ToDo: Add user ID
             }
         });
         revalidatePath('/dashboard/finance');
         return { success: true };
     } catch (error) {
-        return { error: "فشل في إضافة المصروف" };
+        return { error: "Failed to add expense" };
     }
 }
 
 export async function deleteExpense(id: string) {
     try {
-        await prisma.expense.delete({ where: { id } });
+        await prisma.expense.delete({
+            where: { id }
+        });
         revalidatePath('/dashboard/finance');
         return { success: true };
     } catch (error) {
-        return { error: "فشل في حذف المصروف" };
-    }
-}
-
-export async function getFinancialSummary(startDate?: Date, endDate?: Date) {
-    try {
-        // Defaults to "All Time" if no dates provided, or "Today" if desired.
-        // Let's default to Today for specific focus, but usually finance is monthly.
-        // Let's just do "All Time" simplicity for MVP or "Today" if logic dictates.
-        // Let's grab all for simplicity of the prompt's scope unless specified.
-        // Actually, "Daily Revenue" implies daily. Let's do "Today" by default?
-        // Let's return ALL data and let client filter? No, heavy.
-        // Let's return "Last 30 Days" by default.
-
-        const start = startDate || new Date(new Date().setDate(new Date().getDate() - 30));
-        const end = endDate || new Date();
-
-        const [bills, expenses, orders] = await Promise.all([
-            prisma.bill.findMany({
-                where: { paidAt: { gte: start, lte: end } }
-            }),
-            prisma.expense.findMany({
-                where: { date: { gte: start, lte: end } },
-                orderBy: { date: 'desc' }
-            }),
-            prisma.order.findMany({
-                where: {
-                    status: 'COMPLETED',
-                    updatedAt: { gte: start, lte: end }
-                },
-                include: {
-                    items: {
-                        include: {
-                            menuItem: {
-                                include: {
-                                    recipe: {
-                                        include: { material: true }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            })
-        ]);
-
-        const revenue = bills.reduce((acc, bill) => acc + bill.amount, 0);
-        const totalExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0);
-
-        // Calculate COGS
-        // Iterate every sold item -> sum(recipe item cost * quantity)
-        let cogs = 0;
-
-        orders.forEach(order => {
-            order.items.forEach(orderItem => {
-                // Use stored cost if available (Process "Cost at time of Sale")
-                if (orderItem.cost && orderItem.cost > 0) {
-                    cogs += orderItem.cost;
-                } else {
-                    // Fallback for old orders: Calculate based on CURRENT recipe cost
-                    let unitCost = 0;
-                    orderItem.menuItem.recipe.forEach(recipeItem => {
-                        const materialCost = recipeItem.material.costPerUnit;
-                        const qtyNeeded = recipeItem.quantity;
-                        unitCost += materialCost * qtyNeeded;
-                    });
-                    cogs += unitCost * orderItem.quantity;
-                }
-            });
-        });
-
-        const netProfit = revenue - totalExpenses - cogs;
-
-        return {
-            revenue,
-            expenses: totalExpenses,
-            cogs,
-            netProfit,
-            expenseList: expenses,
-            transactionCount: bills.length
-        };
-
-    } catch (error) {
-        console.error("Financial Error", error);
-        return {
-            revenue: 0, expenses: 0, cogs: 0, netProfit: 0, expenseList: [], transactionCount: 0
-        };
+        return { error: "Failed to delete expense" };
     }
 }

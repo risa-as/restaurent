@@ -137,6 +137,8 @@ export async function updateDeliveryStatus(deliveryId: string, status: string) {
         });
 
         // If delivered, mark order completed and handle inventory/finance
+        // If delivered, mark order completed and handle inventory/finance
+        /* REMOVED: Autocomplete on delivery. Now handled by Finance Handover.
         if (status === 'DELIVERED') {
             const delivery = await prisma.delivery.findUnique({ where: { id: deliveryId } });
             if (delivery) {
@@ -145,6 +147,7 @@ export async function updateDeliveryStatus(deliveryId: string, status: string) {
                 });
             }
         }
+        */
 
         revalidatePath('/dashboard/delivery');
         return { success: true };
@@ -164,9 +167,81 @@ export async function getAllDeliveryOrders(driverId?: string) {
                 },
                 driver: true
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { order: { createdAt: 'desc' } }
         });
     } catch (error) {
         return [];
+    }
+}
+
+export async function getUnpaidDeliveryOrders() {
+    try {
+        return await prisma.delivery.findMany({
+            where: {
+                status: 'DELIVERED',
+                isCashHandedOver: false
+            },
+            include: {
+                order: {
+                    include: { items: { include: { menuItem: true } } }
+                },
+                driver: true
+            },
+            orderBy: { order: { updatedAt: 'desc' } }
+        });
+    } catch (error) {
+        console.error("Failed to get unpaid delivery orders", error);
+        return [];
+    }
+}
+
+export async function markDeliveriesAsHandedOver(deliveryIds: string[]) {
+    try {
+        await prisma.$transaction(async (tx) => {
+            const deliveries = await tx.delivery.findMany({
+                where: { id: { in: deliveryIds } },
+                include: { order: true }
+            });
+
+            for (const delivery of deliveries) {
+                // 1. Update Delivery
+                await tx.delivery.update({
+                    where: { id: delivery.id },
+                    data: {
+                        isCashHandedOver: true,
+                        handedOverAt: new Date()
+                    }
+                });
+
+                // 2. Update Order Status
+                await tx.order.update({
+                    where: { id: delivery.orderId },
+                    data: { status: 'COMPLETED' }
+                });
+
+                // 3. Create Bill if not exists
+                const existingBill = await tx.bill.findFirst({
+                    where: { orderId: delivery.orderId }
+                });
+
+                if (!existingBill) {
+                    await tx.bill.create({
+                        data: {
+                            orderId: delivery.orderId,
+                            amount: delivery.order.totalAmount, // Assuming totalAmount includes delivery fee logic handling in POS
+                            paymentMethod: 'CASH',
+                            paidAt: new Date()
+                        }
+                    });
+                }
+            }
+        });
+
+        revalidatePath('/dashboard/delivery');
+        revalidatePath('/dashboard/orders');
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to mark deliveries as handed over", error);
+        return { error: "Failed to update status" };
     }
 }

@@ -72,6 +72,8 @@ export async function createCaptainOrder(data: { tableId: string, items: { menuI
                 where: { id: data.tableId },
                 data: { status: 'OCCUPIED' }
             });
+        }, {
+            timeout: 20000
         });
 
         revalidatePath('/dashboard/kitchen');
@@ -105,7 +107,8 @@ export async function getCaptainActiveOrders() {
             where: {
                 status: {
                     in: ['PENDING', 'PREPARING', 'READY']
-                }
+                },
+                delivery: null // Exclude delivery orders from Captain view
             },
             include: {
                 table: true,
@@ -131,18 +134,12 @@ export async function getCaptainActiveOrders() {
 
 export async function markOrderCompleted(id: string) {
     try {
+        // Captain marks order as SERVED (handed to customer).
+        // Cashier will then mark it as COMPLETED (Paid).
         await prisma.order.update({
             where: { id },
-            data: { status: 'COMPLETED' }
+            data: { status: 'SERVED' }
         });
-
-        // If order had a table, free it up?
-        // User didn't explicitly ask, but logic suggests if check is paid/delivered, table might be free.
-        // However, "Delivered" might just mean food is on table. "Paid" frees the table. 
-        // For now, I will NOT free the table on "Delivered" because usually payment is the final step.
-        // Wait, "Delivered" here implies "Kitchen -> Customer". 
-        // "Completed Orders" usually means "Done".
-        // I will just update status to COMPLETED.
 
         revalidatePath('/captain/orders');
         revalidatePath('/captain/history');

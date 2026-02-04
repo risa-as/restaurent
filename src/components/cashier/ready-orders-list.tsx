@@ -3,11 +3,12 @@
 import { Order, OrderItem, MenuItem, Table, Delivery, User } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Receipt } from '@/components/orders/receipt';
 import { markOrderAsPaid, getCashierOrders } from '@/lib/actions/cashier';
-import { CheckCircle, DollarSign, RefreshCw, ShoppingBag, Utensils } from 'lucide-react';
+import { CheckCircle, DollarSign, RefreshCw, ShoppingBag, Utensils, Printer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 
 type OrderWithDetails = Order & {
     items: (OrderItem & { menuItem: MenuItem })[];
@@ -22,21 +23,35 @@ interface ReadyOrdersListProps {
 export function ReadyOrdersList({ initialOrders }: ReadyOrdersListProps) {
     const [orders, setOrders] = useState<OrderWithDetails[]>(initialOrders);
     const [selectedOrder, setSelectedOrder] = useState<OrderWithDetails | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
     // Auto-refresh orders
     useEffect(() => {
-        const interval = setInterval(async () => {
+        const fetchOrders = async () => {
             const freshOrders = await getCashierOrders();
             setOrders(freshOrders);
-        }, 10000);
+        };
+        fetchOrders();
+
+        const interval = setInterval(fetchOrders, 10000);
         return () => clearInterval(interval);
     }, []);
 
+    const printingOrderId = useRef<string | null>(null);
+
+    // Handle print auto-pay
     useEffect(() => {
-        setOrders(initialOrders);
-    }, [initialOrders]);
+        const onAfterPrint = () => {
+            if (printingOrderId.current) {
+                handlePayment(printingOrderId.current);
+                printingOrderId.current = null;
+            }
+        };
+        window.addEventListener('afterprint', onAfterPrint);
+        return () => window.removeEventListener('afterprint', onAfterPrint);
+    }); // Re-bind on every render to ensure handlePayment has latest scope
 
     const handlePayment = async (orderId: string) => {
         startTransition(async () => {
@@ -63,13 +78,25 @@ export function ReadyOrdersList({ initialOrders }: ReadyOrdersListProps) {
     return (
         <div className="flex flex-col h-full bg-white border-r">
             <div className="p-4 border-b bg-muted/30 font-semibold flex justify-between items-center">
-                <span className="text-lg">طلبات المطبخ الجاهزة ({orders.length})</span>
-                <Button variant="ghost" size="icon" onClick={async () => {
-                    const freshOrders = await getCashierOrders();
-                    setOrders(freshOrders);
-                }}>
-                    <RefreshCw className="w-4 h-4" />
-                </Button>
+                <span className="text-lg">الطلبات الجاهزة والمقدمة ({orders.length})</span>
+                <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => {
+                        if (selectedOrder) {
+                            printingOrderId.current = selectedOrder.id;
+                            window.print();
+                        }
+                    }} disabled={!selectedOrder} title="طباعة الفاتورة">
+                        <Printer className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={async () => {
+                        setIsRefreshing(true);
+                        const freshOrders = await getCashierOrders();
+                        setOrders(freshOrders);
+                        setIsRefreshing(false);
+                    }} disabled={isRefreshing} title="تحديث القائمة">
+                        <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </Button>
+                </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
@@ -87,7 +114,12 @@ export function ReadyOrdersList({ initialOrders }: ReadyOrdersListProps) {
                                 >
                                     <div className="flex justify-between items-start mb-1">
                                         <div className="font-bold">#{order.orderNumber}</div>
-                                        <div className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">جاهز</div>
+                                        <div className={`text-xs px-2 py-0.5 rounded-full ${order.status === 'SERVED'
+                                            ? 'bg-yellow-100 text-yellow-800'
+                                            : 'bg-green-100 text-green-700'
+                                            }`}>
+                                            {order.status === 'SERVED' ? 'بانتظار الدفع' : 'جاهز من المطبخ'}
+                                        </div>
                                     </div>
                                     <div className="flex justify-between items-center text-xs text-gray-600">
                                         <div className="flex items-center gap-1">
@@ -149,6 +181,7 @@ export function ReadyOrdersList({ initialOrders }: ReadyOrdersListProps) {
                     )}
                 </div>
             </div>
+            {selectedOrder && <Receipt order={selectedOrder} />}
         </div>
     );
 }

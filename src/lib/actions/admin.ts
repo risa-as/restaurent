@@ -10,8 +10,8 @@ import { hash } from 'bcryptjs';
 const userSchema = z.object({
     name: z.string().min(2),
     email: z.string().email(),
-    password: z.string().min(6).optional(), // Optional for edit
-    role: z.enum(['ADMIN', 'MANAGER', 'WAITER', 'CHEF', 'ACCOUNTANT', 'DRIVER', 'CAPTAIN', 'DELIVERY_MANAGER']),
+    password: z.union([z.string().min(6), z.literal('')]).optional(), // Optional for edit
+    role: z.enum(['ADMIN', 'MANAGER', 'WAITER', 'CHEF', 'ACCOUNTANT', 'DRIVER', 'CAPTAIN', 'DELIVERY_MANAGER', 'CASHIER']),
     phone: z.string().optional(),
 });
 

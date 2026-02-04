@@ -1,6 +1,6 @@
 'use client';
 
-import { useFieldArray, useForm } from 'react-hook-form';
+import { Resolver, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTransition, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,7 @@ import {
 import { SheetFooter } from '@/components/ui/sheet';
 import { Category, MenuItem, RawMaterial, RecipeItem } from '@prisma/client';
 import { Plus, Trash2 } from 'lucide-react';
+import { ImageUpload } from '@/components/common/image-upload';
 
 interface MenuItemFormProps {
     categories: Category[];
@@ -47,7 +48,7 @@ export function MenuItemForm({ categories, initialData, onSuccess }: MenuItemFor
     }, []);
 
     const form = useForm<MenuItemFormValues>({
-        resolver: zodResolver(menuItemSchema),
+        resolver: zodResolver(menuItemSchema) as Resolver<MenuItemFormValues>,
         defaultValues: initialData ? {
             name: initialData.name,
             description: initialData.description || '',
@@ -122,6 +123,19 @@ export function MenuItemForm({ categories, initialData, onSuccess }: MenuItemFor
                     />
                     <FormField
                         control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>الوصف</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="وصف الطبق ومكوناته..." className="resize-none" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
                         name="categoryId"
                         render={({ field }) => (
                             <FormItem>
@@ -189,9 +203,13 @@ export function MenuItemForm({ categories, initialData, onSuccess }: MenuItemFor
                         name="image"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>رابط الصورة</FormLabel>
+                                <FormLabel>صورة الصنف</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="https://..." {...field} />
+                                    <ImageUpload
+                                        value={field.value || ''}
+                                        onChange={field.onChange}
+                                        onRemove={() => field.onChange('')}
+                                    />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>

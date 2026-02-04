@@ -1,0 +1,11 @@
+8 items found.
+Item Name | Category Name | Category Type
+---------------------------------------
+قهوة | مشروبات ساخنة | BEVERAGE
+شاي عراقي | مشروبات ساخنة | BEVERAGE
+كنافة | حلويات | DESSERT
+كرسبي دجاج | مأكولات غربية | WESTERN
+برجر لحم | مأكولات غربية | WESTERN
+مندي لحم | مأكولات شرقية | EASTERN
+كبسة دجاج | مأكولات شرقية | EASTERN
+كباب دجاج | مأكولات شرقية | EASTERN

@@ -1,0 +1,18 @@
+Found 7 total READY/SERVED orders.
+Found 0 filtered orders (No Bill, No Delivery).
+
+--- ALL READY/SERVED ORDERS ---
+ID: cml69pzse0019c7142tdnqepq | Status: SERVED | Delivery: NO | Bills: 1
+   -> Paid: 27000
+ID: cml69pjqa0012c714bxkmcj1k | Status: SERVED | Delivery: NO | Bills: 1
+   -> Paid: 13000
+ID: cml6ai1cu0009c7lgrbyvsnv1 | Status: SERVED | Delivery: NO | Bills: 1
+   -> Paid: 16000
+ID: cml6ahnn40001c7lgsvqsfcdv | Status: SERVED | Delivery: NO | Bills: 1
+   -> Paid: 28000
+ID: cml6bl3ho001kc7lgbvofuohq | Status: SERVED | Delivery: NO | Bills: 1
+   -> Paid: 13000
+ID: cml6avew7000mc7lg9mz69248 | Status: READY | Delivery: YES | Bills: 0
+   -> Driver: cml5az87y0005c7ogd6xih00a
+ID: cml6bov550001c7qk2yxiu0dk | Status: SERVED | Delivery: NO | Bills: 1
+   -> Paid: 30000

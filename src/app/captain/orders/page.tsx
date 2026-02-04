@@ -7,6 +7,8 @@ import { ar } from 'date-fns/locale';
 
 export const dynamic = 'force-dynamic';
 
+import { AutoRefresh } from '@/components/ui/auto-refresh';
+
 export default async function CaptainOrdersPage() {
     const orders = await getCaptainActiveOrders();
 
@@ -18,6 +20,7 @@ export default async function CaptainOrdersPage() {
 
     return (
         <div className="h-full overflow-y-auto max-w-5xl mx-auto">
+            <AutoRefresh intervalMs={10000} />
             <h1 className="text-2xl font-bold mb-6">متابعة طلبات المطبخ</h1>
 
             <div className="grid gap-4">

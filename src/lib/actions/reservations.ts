@@ -13,10 +13,13 @@ export async function getReservations(date?: Date) {
         const start = new Date(today);
         start.setHours(0, 0, 0, 0);
         // End of day
+        // End of day
         const end = new Date(today);
         end.setHours(23, 59, 59, 999);
 
-        return await prisma.reservation.findMany({
+        console.log('[getReservations] Querying for:', { start, end });
+
+        const reservations = await prisma.reservation.findMany({
             where: {
                 reservationTime: {
                     gte: start,
@@ -28,6 +31,9 @@ export async function getReservations(date?: Date) {
             },
             orderBy: { reservationTime: 'asc' }
         });
+
+        console.log('[getReservations] Found:', reservations.length);
+        return reservations;
     } catch (error) {
         console.error("Failed to fetch reservations", error);
         return [];
@@ -45,6 +51,7 @@ export async function createReservation(data: ReservationFormValues) {
                 status: 'CONFIRMED'
             }
         });
+        console.log('[createReservation] Created reservation at:', validated.data.reservationTime);
         revalidatePath('/dashboard/reservations');
         // In a real app, sendSMS(data.customerPhone, "Your reservation is confirmed!");
         return { success: true };
@@ -91,5 +98,21 @@ export async function cancelReservation(id: string) {
         return { success: true };
     } catch (error) {
         return { error: "Failed to cancel" };
+    }
+}
+
+export async function updateReservation(id: string, data: ReservationFormValues) {
+    const validated = reservationSchema.safeParse(data);
+    if (!validated.success) return { error: "Invalid fields" };
+
+    try {
+        await prisma.reservation.update({
+            where: { id },
+            data: validated.data
+        });
+        revalidatePath('/dashboard/reservations');
+        return { success: true };
+    } catch (error) {
+        return { error: "Failed to update reservation" };
     }
 }

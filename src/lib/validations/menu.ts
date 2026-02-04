@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const categorySchema = z.object({
     name: z.string().min(2, "يجب أن يكون الاسم حرفين على الأقل"),
-    type: z.enum(["EASTERN", "WESTERN", "BEVERAGE", "DESSERT"]),
 });
 
 export type CategoryFormValues = z.infer<typeof categorySchema>;

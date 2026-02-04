@@ -45,7 +45,7 @@ const schema = z.object({
     name: z.string().min(2),
     email: z.string().email(),
     password: z.string().optional(),
-    role: z.enum(['ADMIN', 'MANAGER', 'WAITER', 'CHEF', 'ACCOUNTANT', 'DRIVER', 'CAPTAIN', 'DELIVERY_MANAGER']),
+    role: z.enum(['ADMIN', 'MANAGER', 'WAITER', 'CHEF', 'ACCOUNTANT', 'DRIVER', 'CAPTAIN', 'DELIVERY_MANAGER', 'CASHIER']),
     phone: z.string().optional(),
 });
 
@@ -186,6 +186,7 @@ function UserForm({ user, onSuccess }: { user: User | null, onSuccess: () => voi
                                     <SelectItem value="CHEF">طاهي</SelectItem>
                                     <SelectItem value="DRIVER">سائق</SelectItem>
                                     <SelectItem value="CAPTAIN">كابتن</SelectItem>
+                                    <SelectItem value="CASHIER">أمين صندوق</SelectItem>
                                     <SelectItem value="DELIVERY_MANAGER">مدير سائقين</SelectItem>
                                     <SelectItem value="ACCOUNTANT">محاسب</SelectItem>
                                 </SelectContent>

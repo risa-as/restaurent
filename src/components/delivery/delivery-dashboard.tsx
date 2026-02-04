@@ -17,6 +17,7 @@ import { MapPin, Phone, Truck, CheckCircle, User as UserIcon, Clock } from 'luci
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
+import { RelativeTime } from '@/components/common/relative-time';
 
 type DeliveryWithRelations = Delivery & {
     order: Order & { items: (OrderItem & { menuItem: MenuItem })[] };
@@ -101,7 +102,7 @@ function DeliveryCard({ delivery, drivers }: { delivery: DeliveryWithRelations, 
                     </Badge>
                     <span className="text-[10px] uppercase font-medium text-muted-foreground bg-gray-100 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {formatDistanceToNow(new Date(delivery.order.createdAt), { addSuffix: true, locale: ar })}
+                        <RelativeTime date={delivery.order.createdAt} />
                     </span>
                 </div>
                 <div className="font-bold text-gray-800 leading-tight">{delivery.customerName}</div>
@@ -121,8 +122,35 @@ function DeliveryCard({ delivery, drivers }: { delivery: DeliveryWithRelations, 
                     <span className="font-bold">{delivery.order.totalAmount.toFixed(0)} د.ع</span>
                 </div>
 
-                {optimisticStatus === 'PENDING' && (
-                    <div className="flex gap-2">
+                {/* Kitchen Status Badge */}
+                {(delivery.order.status === 'PREPARING' || delivery.order.status === 'READY') && (
+                    <div className={`text-xs flex items-center gap-2 p-2 rounded border font-bold ${delivery.order.status === 'READY'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-orange-50 text-orange-700 border-orange-200'
+                        }`}>
+                        {delivery.order.status === 'READY' ? (
+                            <>
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                <span>جاهز للتوصيل</span>
+                            </>
+                        ) : (
+                            <>
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>يتم التجهيز في المطبخ</span>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Assign Driver (Available for PENDING and ASSIGNED) */}
+                {(optimisticStatus === 'PENDING' || optimisticStatus === 'ASSIGNED') && (
+                    <div className="space-y-2">
+                        {optimisticStatus === 'ASSIGNED' && (
+                            <div className="text-xs flex items-center gap-2 bg-yellow-50 p-2 rounded text-yellow-800 border border-yellow-100 mb-2">
+                                <UserIcon className="w-3 h-3" />
+                                <span>السائق الحالي: {currentDriver?.name || 'غ/م'}</span>
+                            </div>
+                        )}
                         <Select onValueChange={(driverId) => {
                             startTransition(async () => {
                                 setOptimisticStatus('ASSIGNED');
@@ -131,7 +159,7 @@ function DeliveryCard({ delivery, drivers }: { delivery: DeliveryWithRelations, 
                             });
                         }}>
                             <SelectTrigger className="h-8 text-xs w-full" disabled={isPending}>
-                                <SelectValue placeholder="تعيين سائق" />
+                                <SelectValue placeholder={optimisticStatus === 'ASSIGNED' ? "تغيير السائق" : "تعيين سائق"} />
                             </SelectTrigger>
                             <SelectContent dir="rtl">
                                 {drivers.map(d => (
@@ -142,49 +170,11 @@ function DeliveryCard({ delivery, drivers }: { delivery: DeliveryWithRelations, 
                     </div>
                 )}
 
-                {optimisticStatus === 'ASSIGNED' && (
-                    <div className="space-y-2">
-                        <div className="text-xs flex items-center gap-2 bg-yellow-50 p-2 rounded text-yellow-800 border border-yellow-100">
-                            <UserIcon className="w-3 h-3" />
-                            <span>السائق: {currentDriver?.name || 'غ/م'}</span>
-                        </div>
-                        <Button
-                            className="w-full h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                            size="sm"
-                            disabled={isPending}
-                            onClick={() => {
-                                startTransition(async () => {
-                                    setOptimisticStatus('OUT_FOR_DELIVERY');
-                                    await updateDeliveryStatus(delivery.id, 'OUT_FOR_DELIVERY');
-                                });
-                            }}
-                        >
-                            <Truck className="w-3 h-3 mr-1 ml-1" />
-                            بدء التوصيل
-                        </Button>
-                    </div>
-                )}
-
+                {/* Read-Only Status for Out/Delivered if they exist */}
                 {optimisticStatus === 'OUT_FOR_DELIVERY' && (
-                    <div className="space-y-2">
-                        <div className="text-xs flex items-center gap-2 bg-blue-50 p-2 rounded text-blue-800 border border-blue-100">
-                            <UserIcon className="w-3 h-3" />
-                            <span>السائق: {currentDriver?.name || 'غ/م'}</span>
-                        </div>
-                        <Button
-                            className="w-full h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
-                            size="sm"
-                            disabled={isPending}
-                            onClick={() => {
-                                startTransition(async () => {
-                                    setOptimisticStatus('DELIVERED');
-                                    await updateDeliveryStatus(delivery.id, 'DELIVERED');
-                                });
-                            }}
-                        >
-                            <CheckCircle className="w-3 h-3 mr-1 ml-1" />
-                            تم التوصيل
-                        </Button>
+                    <div className="text-xs flex items-center gap-2 bg-blue-50 p-2 rounded text-blue-800 border border-blue-100">
+                        <Truck className="w-3 h-3" />
+                        <span>خرج للتوصيل - السائق: {currentDriver?.name}</span>
                     </div>
                 )}
             </CardContent>

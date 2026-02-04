@@ -5,22 +5,15 @@ import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
 import {
     LayoutDashboard,
-    Package,
-    UtensilsCrossed,
     Armchair,
-    ShoppingCart,
-    ChefHat,
     Truck,
-    CheckCircle,
     BarChart3,
     Users,
     Settings,
     CalendarDays,
-    ShoppingBag,
-    History,
-    Utensils,
     LogOut,
     DollarSign,
+    UtensilsCrossed,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,18 +28,11 @@ interface SidebarProps {
 // Define links with allowed roles
 const links = [
     { name: 'لوحة التحكم', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER'] },
-    { name: 'المخزون', href: '/dashboard/inventory', icon: Package, roles: ['ADMIN', 'MANAGER'] },
-    { name: 'القائمة', href: '/dashboard/menu', icon: UtensilsCrossed, roles: ['ADMIN', 'MANAGER'] },
     { name: 'الطاولات', href: '/dashboard/tables', icon: Armchair, roles: ['ADMIN', 'MANAGER'] },
-    { name: 'نقاط البيع', href: '/dashboard/pos', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER'] },
-    { name: 'الطلبات', href: '/dashboard/orders', icon: ShoppingBag, roles: ['ADMIN', 'MANAGER'] },
-    { name: 'سجل الطلبات', href: '/dashboard/history', icon: History, roles: ['ADMIN', 'MANAGER'] },
     { name: 'الكاشير', href: '/cashier', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'CASHIER'] },
     { name: 'الكابتن', href: '/captain', icon: Users, roles: ['ADMIN', 'MANAGER', 'CAPTAIN'] },
-    { name: 'توصيل الطلبات', href: '/waiter', icon: Utensils, roles: ['ADMIN', 'MANAGER', 'WAITER'] },
-    { name: 'المطبخ', href: '/kitchen', icon: ChefHat, roles: ['ADMIN', 'MANAGER', 'CHEF'] },
     { name: 'التوصيل', href: '/delivery', icon: Truck, roles: ['ADMIN', 'MANAGER', 'DELIVERY_MANAGER'] },
-    { name: 'سجل التوصيل', href: '/delivery/history', icon: CheckCircle, roles: ['ADMIN', 'MANAGER', 'DELIVERY_MANAGER'] },
+    { name: 'المطبخ', href: '/kitchen', icon: UtensilsCrossed, roles: ['ADMIN', 'MANAGER', 'CHEF'] },
     { name: 'الحجوزات', href: '/dashboard/reservations', icon: CalendarDays, roles: ['ADMIN', 'MANAGER'] },
     { name: 'التقارير', href: '/dashboard/finance', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
     { name: 'الموظفين', href: '/dashboard/admin?tab=users', icon: Users, roles: ['ADMIN', 'MANAGER'] },

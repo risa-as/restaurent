@@ -9,6 +9,7 @@ export const orderItemSchema = z.object({
 export const createOrderSchema = z.object({
     tableId: z.string().optional(), // Optional for takeaway
     deliveryType: z.enum(['pickup', 'delivery']).optional(),
+    customerName: z.string().optional(),
     customerPhone: z.string().optional(),
     customerAddress: z.string().optional(),
     items: z.array(orderItemSchema).min(1, "يجب أن يحتوي الطلب على عنصر واحد على الأقل"),

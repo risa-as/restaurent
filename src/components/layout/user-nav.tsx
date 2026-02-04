@@ -1,4 +1,6 @@
 
+'use client';
+
 import { signOut } from '@/lib/actions/auth';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -47,10 +49,7 @@ export function UserNav({ session }: UserNavProps) {
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <form action={async () => {
-                    'use server';
-                    await signOut();
-                }}>
+                <form action={() => signOut()}>
                     <DropdownMenuItem asChild>
                         <button className="w-full flex items-center text-red-600 focus:text-red-700 cursor-pointer">
                             <LogOut className="mr-2 h-4 w-4 ml-2" />

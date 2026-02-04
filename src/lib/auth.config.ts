@@ -13,8 +13,9 @@ export const authConfig = {
             const isOnCaptain = nextUrl.pathname.startsWith('/captain');
             const isOnWaiter = nextUrl.pathname.startsWith('/waiter');
             const isOnDelivery = nextUrl.pathname.startsWith('/delivery');
+            const isOnInventory = nextUrl.pathname.startsWith('/inventory');
 
-            const isProtected = isOnDashboard || isOnCashier || isOnKitchen || isOnCaptain || isOnWaiter || isOnDelivery;
+            const isProtected = isOnDashboard || isOnCashier || isOnKitchen || isOnCaptain || isOnWaiter || isOnDelivery || isOnInventory;
 
             // Console log for debugging
             console.log(`[Middleware] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}, Role: ${(auth?.user as any)?.role}`);
@@ -29,15 +30,21 @@ export const authConfig = {
                 if (role === 'CAPTAIN' && !isOnCaptain) return Response.redirect(new URL('/captain', nextUrl));
                 if (role === 'WAITER' && !isOnWaiter) return Response.redirect(new URL('/waiter', nextUrl));
                 if ((role === 'DRIVER' || role === 'DELIVERY_MANAGER') && !isOnDelivery) return Response.redirect(new URL('/delivery', nextUrl));
+                if (role === 'STORE_MANAGER' && !isOnInventory) return Response.redirect(new URL('/inventory', nextUrl));
 
                 // Admin/Manager stay on dashboard
                 if ((role === 'ADMIN' || role === 'MANAGER') && !isOnDashboard) {
                     return Response.redirect(new URL('/dashboard', nextUrl));
                 }
+
+                if (role === 'STORE_MANAGER' && !nextUrl.pathname.startsWith('/inventory')) {
+                    return Response.redirect(new URL('/inventory', nextUrl));
+                }
             }
             return true;
         },
         async jwt({ token, user }) {
+            console.log('[JWT Callback] Token:', token.sub, 'User:', user?.role);
             if (user) {
                 token.role = user.role;
                 token.id = user.id;
@@ -45,9 +52,10 @@ export const authConfig = {
             return token;
         },
         async session({ session, token }) {
+            console.log('[Session Callback] Token Role:', token.role);
             if (token && session.user) {
                 // Ensure role is treated correctly
-                session.user.role = token.role as "ADMIN" | "MANAGER" | "WAITER" | "CHEF" | "DRIVER" | "CASHIER" | "CAPTAIN" | "DELIVERY_MANAGER";
+                session.user.role = token.role as any;
                 session.user.id = token.id as string;
             }
             return session;

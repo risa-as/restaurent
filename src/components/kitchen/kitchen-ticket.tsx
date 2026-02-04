@@ -3,11 +3,12 @@
 import { Order, OrderItem, MenuItem, Table } from '@prisma/client';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { markOrderIdsReady, updateOrderToPreparing } from '@/lib/actions/kitchen';
+import { updateKitchenItemStatus } from '@/lib/actions/kitchen';
 import { useTransition, useEffect, useState, useOptimistic } from 'react';
 import { formatDistanceToNow, differenceInMinutes } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Check, Flame, Loader2 } from 'lucide-react';
+import { RelativeTime } from '@/components/common/relative-time';
 
 interface KitchenTicketProps {
     order: Order & { table: Table | null };
@@ -18,8 +19,17 @@ interface KitchenTicketProps {
 export function KitchenTicket({ order, items, categoryName }: KitchenTicketProps) {
     const [isPending, startTransition] = useTransition();
     const [elapsed, setElapsed] = useState(0);
+    // Determine initial status based on items
+    const getInitialStatus = () => {
+        const allReady = items.every(i => i.status === 'READY' || i.status === 'SERVED' || i.status === 'COMPLETED');
+        const anyPreparing = items.some(i => i.status === 'PREPARING');
+        if (allReady) return 'READY';
+        if (anyPreparing) return 'PREPARING';
+        return 'PENDING';
+    };
+
     const [optimisticStatus, setOptimisticStatus] = useOptimistic(
-        order.status,
+        getInitialStatus(),
         (state, newStatus: string) => newStatus as any
     );
 
@@ -37,14 +47,11 @@ export function KitchenTicket({ order, items, categoryName }: KitchenTicketProps
 
     const handleAction = () => {
         startTransition(async () => {
+            // If currently PENDING, move to PREPARING. Else (PREPARING) move to READY.
             const nextStatus = optimisticStatus === 'PENDING' ? 'PREPARING' : 'READY';
             setOptimisticStatus(nextStatus);
 
-            if (order.status === 'PENDING') {
-                await updateOrderToPreparing(order.id);
-            } else {
-                await markOrderIdsReady(order.id);
-            }
+            await updateKitchenItemStatus(items.map(i => i.id), nextStatus);
         });
     };
 
@@ -65,7 +72,7 @@ export function KitchenTicket({ order, items, categoryName }: KitchenTicketProps
                     </div>
                 )}
                 <div className="text-xs font-semibold text-muted-foreground mr-auto text-left" dir="ltr">
-                    {formatDistanceToNow(new Date(order.createdAt), { addSuffix: true, locale: ar })}
+                    <RelativeTime date={order.createdAt} />
                 </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto bg-white/30 p-2">

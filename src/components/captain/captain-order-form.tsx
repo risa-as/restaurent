@@ -88,11 +88,10 @@ export function CaptainOrderForm({ categories, tables }: CaptainOrderFormProps) 
     const totalAmount = cart.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
 
     return (
-        <div className="flex h-[calc(100vh-100px)] gap-4">
+        <div className="flex h-full gap-4">
             {/* Menu Section */}
-            <div className="flex-1 flex flex-col gap-4">
-                <div className="bg-white p-4 rounded-lg shadow-sm border flex items-center gap-4">
-                    <span className="font-bold text-lg">اختر الطاولة:</span>
+            <div className="flex-1 flex flex-col gap-4 min-h-0">
+                <div className="bg-white p-4 rounded-lg shadow-sm border flex items-center gap-4 shrink-0">
                     <span className="font-bold text-lg">اختر الطاولة:</span>
                     <Select value={selectedTable} onValueChange={(value) => {
                         const table = tables.find(t => t.id === value);
@@ -151,8 +150,8 @@ export function CaptainOrderForm({ categories, tables }: CaptainOrderFormProps) 
                     </Select>
                 </div>
 
-                <Tabs defaultValue="all_food" className="flex-1 flex flex-col bg-white rounded-lg shadow-sm border items-start" dir="rtl">
-                    <TabsList className="w-full justify-start h-16 p-2 bg-gray-50 border-b rounded-t-lg rounded-b-none">
+                <Tabs defaultValue="all_food" className="flex-1 flex flex-col bg-white rounded-lg shadow-sm border items-start min-h-0" dir="rtl">
+                    <TabsList className="w-full justify-start h-16 p-2 bg-gray-50 border-b rounded-t-lg rounded-b-none shrink-0">
                         <TabsTrigger value="all_food" className="h-full px-8 text-lg gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                             <UtensilsCrossed className="w-5 h-5" /> الكل
                         </TabsTrigger>
@@ -167,7 +166,7 @@ export function CaptainOrderForm({ categories, tables }: CaptainOrderFormProps) 
                         </TabsTrigger>
                     </TabsList>
 
-                    <div className="flex-1 w-full bg-gray-50/50 p-4 overflow-hidden">
+                    <div className="flex-1 w-full bg-gray-50/50 p-4 overflow-hidden flex flex-col min-h-0">
                         <CategoryView value="all_food" categories={[...easternCategories, ...westernCategories]} onAdd={addToCart} />
                         <CategoryView value="eastern" categories={easternCategories} onAdd={addToCart} />
                         <CategoryView value="western" categories={westernCategories} onAdd={addToCart} />
@@ -246,7 +245,7 @@ export function CaptainOrderForm({ categories, tables }: CaptainOrderFormProps) 
 
 function CategoryView({ value, categories, onAdd }: { value: string, categories: (Category & { items: MenuItem[] })[], onAdd: (item: MenuItem) => void }) {
     return (
-        <TabsContent value={value} className="h-full m-0 data-[state=active]:flex flex-col gap-6 overflow-y-auto pr-2 pb-20">
+        <TabsContent value={value} className="flex-1 m-0 data-[state=active]:flex flex-col gap-6 overflow-y-auto pr-2 pb-20 min-h-0">
             {categories.map(category => (
                 <div key={category.id}>
                     <h3 className="font-bold text-lg mb-3 flex items-center gap-2 text-gray-700">

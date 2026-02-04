@@ -18,6 +18,7 @@ export async function getCategories() {
     }
 }
 
+
 export async function createCategory(data: CategoryFormValues) {
     const validated = categorySchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
@@ -25,10 +26,49 @@ export async function createCategory(data: CategoryFormValues) {
     try {
         await prisma.category.create({ data: validated.data });
         revalidatePath('/dashboard/menu');
+        revalidatePath('/kitchen/categories');
         return { success: true };
     } catch (error) {
         console.error("Failed to create category", error);
         return { error: "Failed to create category" };
+    }
+}
+
+export async function updateCategory(id: string, data: CategoryFormValues) {
+    const validated = categorySchema.safeParse(data);
+    if (!validated.success) return { error: "Invalid fields" };
+
+    try {
+        await prisma.category.update({
+            where: { id },
+            data: validated.data
+        });
+        revalidatePath('/dashboard/menu');
+        revalidatePath('/kitchen/categories');
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to update category", error);
+        return { error: "Failed to update category" };
+    }
+}
+
+export async function deleteCategory(id: string) {
+    try {
+        const itemsCount = await prisma.menuItem.count({
+            where: { categoryId: id }
+        });
+
+        if (itemsCount > 0) {
+            return { error: "لا يمكن حذف القسم لأنه يحتوي على عناصر مرتبطة به" };
+        }
+
+        await prisma.category.delete({ where: { id } });
+        revalidatePath('/dashboard/menu');
+        revalidatePath('/kitchen/categories');
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to delete category", error);
+        return { error: "Failed to delete category" };
     }
 }
 

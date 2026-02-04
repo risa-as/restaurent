@@ -3,6 +3,7 @@ import Header from '@/components/layout/header';
 import { auth } from '@/lib/auth';
 import { Toaster } from '@/components/ui/toaster';
 import { UserNav } from '@/components/layout/user-nav';
+import { RoleHeader } from '@/components/layout/role-header';
 
 export default async function CashierLayout({
     children,
@@ -14,12 +15,8 @@ export default async function CashierLayout({
     return (
         <div className="flex flex-col h-screen w-full bg-gray-50">
             {/* Minimal Header or Custom Header for Cashier */}
-            <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm">
-                <div className="font-bold text-xl">نظام الكاشير</div>
-                <div className="flex items-center gap-4">
-                    <UserNav session={session} />
-                </div>
-            </div>
+            {/* Minimal Header or Custom Header for Cashier */}
+            <RoleHeader title="نظام الكاشير" session={session} />
             <main className="flex-1 p-6 overflow-hidden">
                 {children}
             </main>

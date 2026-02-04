@@ -1,12 +1,14 @@
 'use client';
 
+import { Table } from '@prisma/client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Plus } from 'lucide-react';
 import { ReservationForm } from './reservation-form';
 
-export function AddReservationSheet() {
+
+export function AddReservationSheet({ tables }: AddReservationSheetProps) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -21,7 +23,7 @@ export function AddReservationSheet() {
                     <SheetTitle>حجز جديد</SheetTitle>
                 </SheetHeader>
                 <div className="mt-4">
-                    <ReservationForm onSuccess={() => setOpen(false)} />
+                    <ReservationForm onSuccess={() => setOpen(false)} tables={tables} />
                 </div>
             </SheetContent>
         </Sheet>

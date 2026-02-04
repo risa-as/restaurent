@@ -64,16 +64,23 @@ export function ClientOrderCard({ order, config, status }: any) {
             <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {order.items.map((item: any) => (
-                        <div key={item.id} className="flex items-center justify-between bg-white border p-2 rounded shadow-sm">
+                        <div key={item.id} className={`flex items-center justify-between bg-white border p-2 rounded shadow-sm ${item.status === 'READY' ? 'border-green-200 bg-green-50' :
+                                item.status === 'PREPARING' ? 'border-orange-200 bg-orange-50' : ''
+                            }`}>
                             <div className="flex items-center gap-2">
                                 <span className="font-bold bg-gray-100 w-6 h-6 flex items-center justify-center rounded text-sm">
                                     {item.quantity}
                                 </span>
-                                <span className="text-sm font-medium">{item.menuItem.name}</span>
+                                <div>
+                                    <div className="text-sm font-medium">{item.menuItem.name}</div>
+                                    <div className="flex gap-1 mt-1">
+                                        {item.status === 'PENDING' && <Badge variant="secondary" className="text-[10px] h-4 bg-gray-200 hover:bg-gray-200 text-gray-700">انتظار</Badge>}
+                                        {item.status === 'PREPARING' && <Badge variant="secondary" className="text-[10px] h-4 bg-orange-200 hover:bg-orange-200 text-orange-800 animate-pulse">تحضير</Badge>}
+                                        {item.status === 'READY' && <Badge variant="secondary" className="text-[10px] h-4 bg-green-200 hover:bg-green-200 text-green-800">جاهز</Badge>}
+                                        {item.status === 'SERVED' && <Badge variant="secondary" className="text-[10px] h-4 bg-blue-200 hover:bg-blue-200 text-blue-800">تم التقديم</Badge>}
+                                    </div>
+                                </div>
                             </div>
-                            <Badge variant="secondary" className="text-[10px] h-5">
-                                {config.label}
-                            </Badge>
                         </div>
                     ))}
                 </div>
