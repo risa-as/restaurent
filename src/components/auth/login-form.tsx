@@ -49,10 +49,7 @@ export default function LoginForm() {
                             className="text-right h-10 bg-white"
                         />
                     </div>
-                    <div className="text-xs text-muted-foreground text-center bg-gray-50 p-3 rounded-md border border-gray-100 flex flex-col gap-1">
-                        <span className="font-semibold">بيانات تجريبية (المدير):</span>
-                        <span className="font-mono" dir="ltr">admin@example.com / 123456</span>
-                    </div>
+
 
                     {errorMessage && (
                         <div className="flex items-center gap-2 text-destructive text-sm font-medium bg-destructive/5 p-3 rounded-md border border-destructive/10">
