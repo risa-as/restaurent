@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
-import { DollarSign, CheckCircle, Wallet, User as UserIcon } from 'lucide-react';
+import { CheckCircle, Wallet, User as UserIcon } from 'lucide-react';
 import { markDeliveriesAsHandedOver } from '@/lib/actions/delivery';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -17,7 +17,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 
 type DeliveryWithRelations = Delivery & {

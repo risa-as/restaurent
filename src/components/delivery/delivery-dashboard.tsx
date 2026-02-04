@@ -1,10 +1,9 @@
 'use client';
 
 import type { Delivery, Order, OrderItem, MenuItem, User } from '@prisma/client';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { assignDriver, updateDeliveryStatus } from '@/lib/actions/delivery';
+import { assignDriver } from '@/lib/actions/delivery';
 import {
     Select,
     SelectContent,
@@ -12,10 +11,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useState, useEffect, useOptimistic, useTransition } from 'react';
+import { useEffect, useOptimistic, useTransition } from 'react';
 import { MapPin, Phone, Truck, CheckCircle, User as UserIcon, Clock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ar } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
 import { RelativeTime } from '@/components/common/relative-time';
 
@@ -78,7 +75,7 @@ export function DeliveryDashboard({ deliveries, drivers }: DeliveryDashboardProp
 }
 
 function DeliveryCard({ delivery, drivers }: { delivery: DeliveryWithRelations, drivers: User[] }) {
-    const [selectedDriver, setSelectedDriver] = useState<string>('');
+    // const [selectedDriver, setSelectedDriver] = useState<string>('');
     const [isPending, startTransition] = useTransition();
     const [optimisticStatus, setOptimisticStatus] = useOptimistic(
         delivery.status,

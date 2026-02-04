@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { TransactionType } from '@prisma/client';
+import { RawMaterial, TransactionType } from '@prisma/client';
 
 // --- Raw Materials (Stock) ---
 
@@ -11,7 +11,7 @@ export async function getRawMaterials() {
         return await prisma.rawMaterial.findMany({
             orderBy: { name: 'asc' }
         });
-    } catch (error) {
+    } catch {
         return [];
     }
 }
@@ -29,12 +29,12 @@ export async function createRawMaterial(data: { name: string; unit: string; minS
         });
         revalidatePath('/inventory/stock');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: 'Failed to create material' };
     }
 }
 
-export async function updateRawMaterial(id: string, data: any) {
+export async function updateRawMaterial(id: string, data: Partial<RawMaterial>) {
     try {
         await prisma.rawMaterial.update({
             where: { id },
@@ -42,7 +42,7 @@ export async function updateRawMaterial(id: string, data: any) {
         });
         revalidatePath('/inventory/stock');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: 'Failed to update material' };
     }
 }
@@ -52,7 +52,7 @@ export async function deleteRawMaterial(id: string) {
         await prisma.rawMaterial.delete({ where: { id } });
         revalidatePath('/inventory/stock');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: 'Failed to delete material' };
     }
 }
@@ -120,7 +120,7 @@ export async function getRecipes() {
             },
             orderBy: { name: 'asc' }
         });
-    } catch (error) {
+    } catch {
         return [];
     }
 }
@@ -136,7 +136,7 @@ export async function addRecipeItem(menuItemId: string, materialId: string, quan
         });
         revalidatePath('/kitchen/recipes');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: 'Failed to add recipe item' };
     }
 }
@@ -146,7 +146,7 @@ export async function removeRecipeItem(id: string) {
         await prisma.recipeItem.delete({ where: { id } });
         revalidatePath('/kitchen/recipes');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: 'Failed to remove recipe item' };
     }
 }

@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
+import { Expense } from '@prisma/client';
 
 export interface FinancialStats {
     revenue: number;
@@ -9,7 +10,8 @@ export interface FinancialStats {
     cogs: number; // Cost of Goods Sold
     expenses: number;
     netProfit: number;
-    expenseList: any[];
+    expenseList: Expense[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     orderList: any[];
     salesByDate: { date: string; amount: number }[];
     salesByCategory: { name: string; value: number }[];
@@ -154,7 +156,7 @@ export async function addExpense(data: { description: string; amount: number; ca
         });
         revalidatePath('/dashboard/finance');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: "Failed to add expense" };
     }
 }
@@ -166,7 +168,7 @@ export async function deleteExpense(id: string) {
         });
         revalidatePath('/dashboard/finance');
         return { success: true };
-    } catch (error) {
+    } catch {
         return { error: "Failed to delete expense" };
     }
 }

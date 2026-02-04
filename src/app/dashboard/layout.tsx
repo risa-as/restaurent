@@ -1,7 +1,6 @@
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import { auth } from '@/lib/auth';
-import { redirect } from 'next/navigation';
 import { Toaster } from '@/components/ui/toaster';
 
 export default async function DashboardLayout({

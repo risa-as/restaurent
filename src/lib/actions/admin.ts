@@ -4,7 +4,6 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { UserRole } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
 const userSchema = z.object({

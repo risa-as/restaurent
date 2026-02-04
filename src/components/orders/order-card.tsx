@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Clock, CheckCircle, ChefHat, Bell, XCircle, CheckCircle2 } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import Link from 'next/link';
 import { updateOrderStatus } from '@/lib/actions/orders';
 import { PaymentDialog } from './payment-dialog';
@@ -40,18 +40,6 @@ export function OrderCard({ order }: OrderCardProps) {
         COMPLETED: 'bg-gray-100 text-gray-800',
         CANCELLED: 'bg-red-100 text-red-800'
     }[order.status] || 'bg-gray-100';
-
-    const statusIcons = {
-        PENDING: Clock,
-        PREPARING: ChefHat,
-        READY: Bell,
-        SERVED: CheckCircle,
-        COMPLETED: CheckCircle,
-        CANCELLED: XCircle
-    };
-
-    const nextState = nextStatus[order.status];
-    const ActionIcon = nextState ? (statusIcons[nextState] || CheckCircle) : CheckCircle;
 
     const handleAdvance = async () => {
         const next = nextStatus[order.status];
@@ -97,7 +85,7 @@ export function OrderCard({ order }: OrderCardProps) {
 
                 {order.note && (
                     <div className="text-xs bg-yellow-50 text-yellow-800 p-2 rounded border border-yellow-200 italic">
-                        "{order.note}"
+                        &quot;{order.note}&quot;
                     </div>
                 )}
 

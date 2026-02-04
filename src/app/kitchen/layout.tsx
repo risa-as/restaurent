@@ -1,7 +1,4 @@
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChefHat, UtensilsCrossed, ScrollText, LayoutDashboard } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { ChefHat } from 'lucide-react';
 import { KitchenNav } from '@/components/kitchen/kitchen-nav';
 
 export default function KitchenLayout({

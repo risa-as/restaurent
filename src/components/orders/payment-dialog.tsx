@@ -21,7 +21,7 @@ import {
 import { checkoutOrder } from '@/lib/actions/payments';
 import { useState, useTransition } from 'react';
 import { PaymentMethod } from '@prisma/client';
-import { CreditCard, DollarSign } from 'lucide-react';
+import { DollarSign } from 'lucide-react';
 
 interface PaymentDialogProps {
     order: Order & { items: (OrderItem & { menuItem: MenuItem })[] };

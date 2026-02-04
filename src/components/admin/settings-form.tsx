@@ -22,7 +22,14 @@ export function SettingsForm({ settings }: SettingsFormProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
-    const { register, handleSubmit } = useForm({
+    interface SettingsFormValues {
+        restaurantName: string;
+        currency: string;
+        taxRate: number;
+        serviceFee: number;
+    }
+
+    const { register, handleSubmit } = useForm<SettingsFormValues>({
         defaultValues: {
             restaurantName: settings?.restaurantName || 'My Restaurant',
             currency: settings?.currency || 'د.ع',
@@ -31,7 +38,7 @@ export function SettingsForm({ settings }: SettingsFormProps) {
         }
     });
 
-    const onSubmit = (data: any) => {
+    const onSubmit = (data: SettingsFormValues) => {
         startTransition(async () => {
             const res = await updateSystemSettings({
                 ...data,

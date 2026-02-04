@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { CreateOrderInput } from '@/lib/validations/pos';
 import { DeliveryInput } from '@/lib/validations/delivery';
-import { completeOrderTransaction } from './order-completion';
 
 export async function createDeliveryOrder(orderData: CreateOrderInput, deliveryData: DeliveryInput) {
     // Re-use logic from createOrder but wrap for delivery

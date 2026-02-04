@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { updateKitchenItemStatus } from '@/lib/actions/kitchen';
 import { useTransition, useEffect, useState, useOptimistic } from 'react';
-import { formatDistanceToNow, differenceInMinutes } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { differenceInMinutes } from 'date-fns';
 import { Check, Flame, Loader2 } from 'lucide-react';
 import { RelativeTime } from '@/components/common/relative-time';
 
@@ -30,7 +29,7 @@ export function KitchenTicket({ order, items, categoryName }: KitchenTicketProps
 
     const [optimisticStatus, setOptimisticStatus] = useOptimistic(
         getInitialStatus(),
-        (state, newStatus: string) => newStatus as any
+        (state, newStatus: string) => newStatus
     );
 
     // Update timer every minute for color coding

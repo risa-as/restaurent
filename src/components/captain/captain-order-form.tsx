@@ -8,8 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { createCaptainOrder } from '@/lib/actions/captain';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Minus, Plus, Trash2, UtensilsCrossed, Pizza, Coffee, IceCream } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, Minus, Plus, Trash2, UtensilsCrossed, Pizza, Coffee } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface CaptainOrderFormProps {

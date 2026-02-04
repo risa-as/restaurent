@@ -7,9 +7,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, BellRing, ClipboardCheck } from 'lucide-react';
+import { Search, ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -202,6 +202,7 @@ export function POSInterface({ categories, menuItems, tables, initialPendingOrde
                                             <CardContent className="p-4 flex flex-col items-center text-center gap-2">
                                                 <div className="h-24 w-full bg-secondary rounded-md flex items-center justify-center text-secondary-foreground text-xs overflow-hidden relative">
                                                     {item.image ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
                                                         <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <span>لا توجد صورة</span>

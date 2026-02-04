@@ -12,14 +12,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { deleteUser, upsertUser, UserInput } from '@/lib/actions/admin';
-import { Edit, Trash2, Plus, Lock } from 'lucide-react';
+import { Edit, Trash2, Plus } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
+    // DialogTrigger, // Removed unused
 } from '@/components/ui/dialog';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -124,17 +124,16 @@ export function UserManagement({ users }: { users: User[] }) {
 function UserForm({ user, onSuccess }: { user: User | null, onSuccess: () => void }) {
     const [isPending, startTransition] = useTransition();
     const form = useForm<UserInput>({
-        // @ts-ignore - Schema matches but optional password logic needs care
         resolver: zodResolver(schema),
         defaultValues: {
             name: user?.name || '',
             email: user?.email || '',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             role: (user?.role as any) || 'WAITER',
             phone: user?.phone || '',
             password: ''
         }
     });
-
     const onSubmit = (data: UserInput) => {
         startTransition(async () => {
             await upsertUser(data, user?.id);
@@ -210,6 +209,6 @@ function UserForm({ user, onSuccess }: { user: User | null, onSuccess: () => voi
                     {user ? 'تحديث المستخدم' : 'إنشاء مستخدم'}
                 </Button>
             </form>
-        </Form>
+        </Form >
     );
 }

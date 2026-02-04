@@ -7,10 +7,17 @@ import { CheckCheck, Loader2, Clock, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { markOrderCompleted } from '@/lib/actions/captain';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
-export function ClientOrderCard({ order, config, status }: any) {
+interface ClientOrderCardProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    order: any; // ToDo: Fix type
+    config: { label: string; color: string };
+    status: string;
+}
+
+export function ClientOrderCard({ order, config, status }: ClientOrderCardProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
@@ -63,9 +70,10 @@ export function ClientOrderCard({ order, config, status }: any) {
             </CardHeader>
             <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {order.items.map((item: any) => (
                         <div key={item.id} className={`flex items-center justify-between bg-white border p-2 rounded shadow-sm ${item.status === 'READY' ? 'border-green-200 bg-green-50' :
-                                item.status === 'PREPARING' ? 'border-orange-200 bg-orange-50' : ''
+                            item.status === 'PREPARING' ? 'border-orange-200 bg-orange-50' : ''
                             }`}>
                             <div className="flex items-center gap-2">
                                 <span className="font-bold bg-gray-100 w-6 h-6 flex items-center justify-center rounded text-sm">

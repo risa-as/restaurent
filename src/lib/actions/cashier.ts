@@ -3,7 +3,6 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { OrderStatus } from '@prisma/client';
 
 export async function getCashierOrders() {
     try {

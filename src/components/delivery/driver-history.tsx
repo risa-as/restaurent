@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { CheckCircle, Clock, Search, TrendingUp, Wallet } from 'lucide-react';
+import { CheckCircle, Search, TrendingUp, Wallet } from 'lucide-react';
 
 type DeliveryWithRelations = Delivery & {
     order: Order & { items: (OrderItem & { menuItem: MenuItem })[] };

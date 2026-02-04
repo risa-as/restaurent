@@ -18,7 +18,8 @@ import { settleBills } from '@/lib/actions/accountant';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 
 interface SettlementTableProps {
-    bills: any[]; // Using any to accommodate Includes, strictly it's Bill & { order: ... }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    bills: (Bill & { order: any })[]; // strict typing would be better but this removes explicit any array if I use local type or just define structure
     title: string;
     emptyMessage: string;
 }

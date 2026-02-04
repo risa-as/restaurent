@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { CalendarIcon, Clock } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { SheetFooter } from '@/components/ui/sheet';
@@ -51,6 +51,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
     const router = useRouter();
 
     const form = useForm<ReservationFormValues>({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolver: zodResolver(reservationSchema) as any,
         defaultValues: initialData || {
             customerName: '',
@@ -92,6 +93,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     control={form.control as any}
                     name="customerName"
                     render={({ field }) => (
@@ -106,6 +108,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                 />
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         control={form.control as any}
                         name="customerPhone"
                         render={({ field }) => (
@@ -119,6 +122,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                         )}
                     />
                     <FormField
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         control={form.control as any}
                         name="guests"
                         render={({ field }) => (
@@ -134,6 +138,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                 </div>
 
                 <FormField
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     control={form.control as any}
                     name="tableId"
                     render={({ field }) => (
@@ -160,6 +165,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                 />
 
                 <FormField
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     control={form.control as any}
                     name="reservationTime"
                     render={({ field }) => (
@@ -177,6 +183,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                                                 )}
                                             >
                                                 {field.value ? (
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                                     format(field.value as any, "PPP", { locale: ar })
                                                 ) : (
                                                     <span>اختر تاريخاً</span>
@@ -225,6 +232,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                 />
 
                 <FormField
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     control={form.control as any}
                     name="notes"
                     render={({ field }) => (

@@ -1,12 +1,12 @@
 'use client';
 
-import { Order, OrderItem, MenuItem, Table } from '@prisma/client';
+import { Order, OrderItem, MenuItem, Table, Category } from '@prisma/client';
 import { KitchenTicket } from './kitchen-ticket';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 interface KitchenBoardProps {
-    orders: (Order & { items: (OrderItem & { menuItem: MenuItem })[], table: Table | null })[];
+    orders: (Order & { items: (OrderItem & { menuItem: MenuItem & { category: Category } })[], table: Table | null })[];
 }
 
 export function KitchenBoard({ orders }: KitchenBoardProps) {
@@ -34,7 +34,6 @@ export function KitchenBoard({ orders }: KitchenBoardProps) {
         };
 
         order.items.forEach(item => {
-            // @ts-expect-error category is included
             const type = item.menuItem.category.type;
 
             if (type === 'EASTERN') {

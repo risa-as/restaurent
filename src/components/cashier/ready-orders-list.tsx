@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Receipt } from '@/components/orders/receipt';
 import { markOrderAsPaid, getCashierOrders } from '@/lib/actions/cashier';
-import { CheckCircle, DollarSign, RefreshCw, ShoppingBag, Utensils, Printer } from 'lucide-react';
+import { DollarSign, RefreshCw, ShoppingBag, Utensils, Printer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { useState, useTransition, useEffect, useRef } from 'react';
 
 type OrderWithDetails = Order & {
@@ -65,7 +64,7 @@ export function ReadyOrdersList({ initialOrders }: ReadyOrdersListProps) {
                     title: "تمت العملية بنجاح",
                     description: "تم استلام المبلغ وترحيل الطلب.",
                 });
-            } catch (error) {
+            } catch {
                 toast({
                     variant: "destructive",
                     title: "خطأ",

@@ -4,8 +4,8 @@ import { Order, OrderItem, MenuItem, Table, Delivery, User } from '@prisma/clien
 import { Table as DSTable, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
-import { useState, useRef, useEffect } from 'react';
+// import { ar } from 'date-fns/locale'; // Removed unused
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Printer, RefreshCw } from 'lucide-react';
 import { getCashierHistory } from '@/lib/actions/cashier';

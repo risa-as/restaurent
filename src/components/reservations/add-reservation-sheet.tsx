@@ -8,6 +8,10 @@ import { Plus } from 'lucide-react';
 import { ReservationForm } from './reservation-form';
 
 
+interface AddReservationSheetProps {
+    tables: Table[];
+}
+
 export function AddReservationSheet({ tables }: AddReservationSheetProps) {
     const [open, setOpen] = useState(false);
 

@@ -1,8 +1,7 @@
 
-import Header from '@/components/layout/header';
+
 import { auth } from '@/lib/auth';
 import { Toaster } from '@/components/ui/toaster';
-import { UserNav } from '@/components/layout/user-nav';
 import { RoleHeader } from '@/components/layout/role-header';
 
 export default async function CashierLayout({

@@ -2,12 +2,10 @@
 
 import { Offer, MenuItem } from '@prisma/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { toggleOfferStatus } from '@/lib/actions/menu';
-import { useState } from 'react';
 
 interface OfferListProps {
     offers: (Offer & { menuItems: MenuItem[] })[];

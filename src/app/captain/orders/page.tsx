@@ -1,9 +1,5 @@
 import { getCaptainActiveOrders } from '@/lib/actions/captain';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Clock, Loader2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { ar } from 'date-fns/locale';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +41,7 @@ export default async function CaptainOrdersPage() {
 // Separate component for client-side logic
 import { ClientOrderCard } from './client-order-card';
 
-function OrderCard({ order, config, status }: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function OrderCard({ order, config, status }: { order: any, config: any, status: string }) {
     return <ClientOrderCard order={order} config={config} status={status} />;
 }

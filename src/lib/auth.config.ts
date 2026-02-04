@@ -18,13 +18,13 @@ export const authConfig = {
             const isProtected = isOnDashboard || isOnCashier || isOnKitchen || isOnCaptain || isOnWaiter || isOnDelivery || isOnInventory;
 
             // Console log for debugging
-            console.log(`[Middleware] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}, Role: ${(auth?.user as any)?.role}`);
+            console.log(`[Middleware] Path: ${nextUrl.pathname}, LoggedIn: ${isLoggedIn}, Role: ${auth?.user?.role}`);
 
             if (isProtected) {
                 if (isLoggedIn) return true;
                 return false; // Redirect unauthenticated users to login page
             } else if (isLoggedIn) {
-                const role = (auth?.user as any)?.role;
+                const role = auth?.user?.role;
                 if (role === 'CASHIER' && !isOnCashier) return Response.redirect(new URL('/cashier', nextUrl));
                 if (role === 'CHEF' && !isOnKitchen) return Response.redirect(new URL('/kitchen', nextUrl));
                 if (role === 'CAPTAIN' && !isOnCaptain) return Response.redirect(new URL('/captain', nextUrl));
@@ -55,7 +55,7 @@ export const authConfig = {
             console.log('[Session Callback] Token Role:', token.role);
             if (token && session.user) {
                 // Ensure role is treated correctly
-                session.user.role = token.role as any;
+                session.user.role = token.role as string;
                 session.user.id = token.id as string;
             }
             return session;

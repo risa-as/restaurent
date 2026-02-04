@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { addExpense, deleteExpense, ExpenseInput } from '@/lib/actions/finance';
+import { addExpense, deleteExpense } from '@/lib/actions/finance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -117,7 +117,6 @@ function ExpenseForm({ onSuccess }: { onSuccess: () => void }) {
 
     const onSubmit = (data: z.infer<typeof schema>) => {
         startTransition(async () => {
-            // @ts-ignore
             await addExpense(data);
             form.reset();
             onSuccess();
@@ -145,7 +144,7 @@ function ExpenseForm({ onSuccess }: { onSuccess: () => void }) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>المبلغ</FormLabel>
-                                <FormControl><Input type="number" step="0.01" {...field} value={(field.value as any)} /></FormControl>
+                                <FormControl><Input type="number" step="0.01" {...field} value={field.value ? Number(field.value) : ''} onChange={e => field.onChange(e.target.valueAsNumber)} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}

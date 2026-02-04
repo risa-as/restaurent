@@ -33,7 +33,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                                 tickFormatter={(value) => `${value}`}
                             />
                             <Tooltip
-                                formatter={(value: number) => [`${value} د.ع`, 'الإيراد']}
+                                formatter={(value: any) => [`${value} د.ع`, "الإيراد"]}
                                 labelStyle={{ color: 'black' }}
                             />
                             <Line type="monotone" dataKey="amount" stroke="#166534" strokeWidth={2} dot={false} />

@@ -2,7 +2,6 @@
 
 import { Category } from '@prisma/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit2, Trash2, UtensilsCrossed } from 'lucide-react';
 import { AddCategoryDialog } from '@/components/menu/add-category-dialog';

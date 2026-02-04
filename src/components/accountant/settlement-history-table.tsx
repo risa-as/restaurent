@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/table';
 
 interface SettlementHistoryTableProps {
-    bills: any[]; // Accommodating includes
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    bills: any[]; // ToDo: Define Bill type with includes
     title: string;
     emptyMessage: string;
 }

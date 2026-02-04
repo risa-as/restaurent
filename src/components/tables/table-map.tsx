@@ -6,16 +6,13 @@ import {
     useSensor,
     useSensors,
     PointerSensor,
-    DragOverlay
 } from '@dnd-kit/core';
-import { getTables } from '@/lib/actions/tables';
-import { Table, TableStatus, Order, OrderItem, MenuItem } from '@prisma/client';
-import { updateTablePosition, updateTableStatus, deleteTable } from '@/lib/actions/tables';
+import { getTables, updateTablePosition, updateTableStatus, deleteTable, createTable, updateTableCapacity } from '@/lib/actions/tables';
+import { Table, TableStatus } from '@prisma/client';
 import { DraggableTable } from './draggable-table';
-import { useState, useOptimistic, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createTable, updateTableCapacity } from '@/lib/actions/tables';
 import { Trash2, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -181,7 +178,7 @@ export function TableMap({ initialTables }: TableMapProps) {
                                             if (!result?.success) {
                                                 throw new Error('Failed');
                                             }
-                                        } catch (error) {
+                                        } catch {
                                             // Revert on failure
                                             toast({ title: "فشل تحديث الحالة", variant: "destructive" });
                                             setTables(prev => prev.map(t => t.id === id ? {
@@ -231,7 +228,7 @@ export function TableMap({ initialTables }: TableMapProps) {
                 </DndContext>
                 {tables.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center text-muted-foreground pointer-events-none">
-                        لا توجد طاولات. اضغط على "تعديل المخطط" لإضافة واحدة.
+                        لا توجد طاولات. اضغط على &quot;تعديل المخطط&quot; لإضافة واحدة.
                     </div>
                 )}
                 <div className="absolute bottom-4 right-4 text-xs text-muted-foreground bg-white/50 p-2 rounded">

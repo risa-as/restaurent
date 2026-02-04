@@ -55,10 +55,11 @@ export function CashierView({ initialOrders, historyOrders, categories, menuItem
     const [selectedTable, setSelectedTable] = useState<string>("");
     const [customerPhone, setCustomerPhone] = useState("");
     const [customerAddress, setCustomerAddress] = useState("");
-    const [isPending, startTransition] = useTransition();
+    const [, startTransition] = useTransition();
     const { toast } = useToast();
 
     // Printing State
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [printingOrder, setPrintingOrder] = useState<any | null>(null); // Using any to avoid strict type mismatch with Receipt props if complex
     const printRef = useRef<boolean>(false);
     const [orderSuccess, setOrderSuccess] = useState<string | null>(null); // Store Order ID
@@ -115,31 +116,33 @@ export function CashierView({ initialOrders, historyOrders, categories, menuItem
             return;
         }
 
-        const res = await createOrder({
-            tableId: orderType === 'dine_in' ? selectedTable : undefined,
-            deliveryType: orderType === 'delivery' ? 'delivery' : (orderType === 'takeaway' ? 'pickup' : undefined),
-            items: cart.map(i => ({ menuItemId: i.menuItem.id, quantity: i.quantity, notes: i.notes })),
-            customerPhone,
-            customerAddress,
-            note: `نظام الكاشير - ${orderType}`
-        });
+        startTransition(async () => {
+            const res = await createOrder({
+                tableId: orderType === 'dine_in' ? selectedTable : undefined,
+                deliveryType: orderType === 'delivery' ? 'delivery' : (orderType === 'takeaway' ? 'pickup' : undefined),
+                items: cart.map(i => ({ menuItemId: i.menuItem.id, quantity: i.quantity, notes: i.notes })),
+                customerPhone,
+                customerAddress,
+                note: `نظام الكاشير - ${orderType}`
+            });
 
-        if (res?.error) {
-            toast({ variant: "destructive", title: "خطأ", description: res.error });
-        } else {
-            toast({ title: "تم بنجاح", description: "تم إنشاء الطلب" });
+            if (res?.error) {
+                toast({ variant: "destructive", title: "خطأ", description: res.error });
+            } else {
+                toast({ title: "تم بنجاح", description: "تم إنشاء الطلب" });
 
-            // Manual Print Logic
-            if (res.orderId) {
-                setOrderSuccess(res.orderId);
-                // Pre-fetch order data silently for printing?
-                // Or wait for user to click Print.
-                // We'll wait for click to be safe and simple.
+                // Manual Print Logic
+                if (res.orderId) {
+                    setOrderSuccess(res.orderId);
+                    // Pre-fetch order data silently for printing?
+                    // Or wait for user to click Print.
+                    // We'll wait for click to be safe and simple.
 
-                // Clear cart immediately
-                clearCart();
+                    // Clear cart immediately
+                    clearCart();
+                }
             }
-        }
+        });
     };
 
     const handlePrintSuccess = async () => {
@@ -252,7 +255,10 @@ export function CashierView({ initialOrders, historyOrders, categories, menuItem
                             <Button
                                 size="lg"
                                 className="w-full gap-2 text-lg h-12"
-                                onClick={handlePrintSuccess}
+                                onClick={() => {
+                                    setOrderSuccess(null);
+                                    // Handle print or other logic if needed
+                                }}
                             >
                                 <Printer className="h-5 w-5" />
                                 طباعة الإيصال

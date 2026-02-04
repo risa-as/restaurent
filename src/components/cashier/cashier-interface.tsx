@@ -3,14 +3,13 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { Order, OrderItem, MenuItem, Table, Delivery, User } from '@prisma/client';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+// import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'; // Unused
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { markOrderAsPaid, getCashierOrders } from '@/lib/actions/cashier';
 import { CheckCircle, DollarSign, RefreshCw, ShoppingBag, Utensils } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
 
 type OrderWithDetails = Order & {
     items: (OrderItem & { menuItem: MenuItem })[];
@@ -55,7 +54,7 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
                     title: "تمت العملية بنجاح",
                     description: "تم استلام المبلغ وترحيل الطلب.",
                 });
-            } catch (error) {
+            } catch {
                 toast({
                     variant: "destructive",
                     title: "خطأ",

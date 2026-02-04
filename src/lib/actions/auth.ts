@@ -25,6 +25,7 @@ export async function authenticate(
 
         if (user) {
             console.log('[Authenticate Action] Found user:', user.email, 'Role:', user.role);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             switch (user.role as any) {
                 case 'STORE_MANAGER':
                     redirectTo = '/inventory';
@@ -63,6 +64,7 @@ export async function authenticate(
 
         // Use redirect: false to prevent NextAuth from managing the redirect.
         // We will handle it manually to ensure it goes where we want.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = await signIn('credentials', formData, { redirect: false } as any);
 
         console.log('[Authenticate Action] SignIn result:', result);
@@ -75,6 +77,7 @@ export async function authenticate(
         redirect(redirectTo);
 
     } catch (error) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const err = error as any;
 
         // Next.js handles redirects by throwing an error with code 'NEXT_REDIRECT' or message 'NEXT_REDIRECT'

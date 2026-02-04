@@ -87,7 +87,7 @@ export function ReservationList({ reservations, tables }: ReservationListProps) 
                                     {res.status === 'CONFIRMED' && (
                                         <>
                                             <CheckInDialog reservation={res} tables={tables} />
-                                            <EditReservationSheet reservation={res as any} tables={tables} />
+                                            <EditReservationSheet reservation={res} tables={tables} />
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

@@ -1,7 +1,5 @@
 import { InventorySidebar } from '@/components/inventory/inventory-sidebar';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Power } from 'lucide-react';
 
 export default function InventoryLayout({
     children,

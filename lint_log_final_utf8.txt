@@ -1,0 +1,43 @@
+﻿
+> restaurant@0.1.0 lint
+> next lint
+
+node.exe : 
+At line:1 char:1
++ & "C:\Program File
+s\nodejs/node.exe" 
+"C:\Program Files\no
+dejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo  
+            : NotS  
+  pecified: (:Str   
+ ing) [], Remote    
+Exception
+    + FullyQualifie 
+   dErrorId : Nati  
+  veCommandError
+ 
+./src/lib/actions/in
+ventory.ts
+14:14  Error: 
+'error' is defined 
+but never used.  @ty
+pescript-eslint/no-u
+nused-vars
+123:14  Error: 
+'error' is defined 
+but never used.  @ty
+pescript-eslint/no-u
+nused-vars
+
+info  - Need to 
+disable some ESLint 
+rules? Learn more 
+here: https://nextjs
+.org/docs/basic-feat
+ures/eslint#disablin
+g-rules

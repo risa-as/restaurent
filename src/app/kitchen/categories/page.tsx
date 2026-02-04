@@ -1,7 +1,5 @@
 import { getCategories } from '@/lib/actions/menu';
 import { CategoryList } from '@/components/inventory/category-list';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { UtensilsCrossed } from 'lucide-react';
 
 export default async function FoodCategoriesPage() {
     const categories = await getCategories();

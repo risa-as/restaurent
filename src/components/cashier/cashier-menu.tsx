@@ -172,6 +172,7 @@ export function CashierMenu({
                                 <CardContent className="p-3 text-center flex flex-col gap-2">
                                     <div className="h-20 w-full bg-gray-100 rounded flex items-center justify-center text-xs relative overflow-hidden">
                                         {item.image ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
                                             <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                         ) : (
                                             <span className="text-gray-400">صورة</span>

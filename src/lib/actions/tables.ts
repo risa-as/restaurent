@@ -1,7 +1,6 @@
 'use server';
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { TableStatus } from '@prisma/client';

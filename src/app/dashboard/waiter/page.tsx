@@ -16,7 +16,7 @@ export default async function WaiterPage() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">طلبات الصالة الجاهزة</h1>
-                        <p className="text-sm text-gray-500">قم بتوصيل الطلبات للطاولات ثم اضغط "تم التقديم"</p>
+                        <p className="text-sm text-gray-500">قم بتوصيل الطلبات للطاولات ثم اضغط &quot;تم التقديم&quot;</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">

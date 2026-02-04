@@ -3,7 +3,7 @@
 import { MenuItem, Table, Offer } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Minus, Plus, Trash2, ShoppingCart } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { createOrder } from '@/lib/actions/pos';

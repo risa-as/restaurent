@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { DateRange } from "react-day-picker";
-import { startOfDay, endOfDay, subDays } from "date-fns";
+import { subDays } from "date-fns";
 import { getFinancialStats, FinancialStats } from '@/lib/actions/finance';
 import { DateRangePicker } from './date-range-picker';
 import { SummaryCards } from './summary-cards';
@@ -79,7 +79,7 @@ export function FinanceDashboard() {
                                             {data.orderList.length === 0 ? (
                                                 <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">لا توجد طلبات</td></tr>
                                             ) : (
-                                                data.orderList.slice(0, 50).map((order: any) => (
+                                                data.orderList.slice(0, 50).map((order) => (
                                                     <tr key={order.id} className="border-b">
                                                         <td className="p-2">#{order.orderNumber}</td>
                                                         <td className="p-2">{new Date(order.createdAt).toLocaleDateString('ar-EG')}</td>

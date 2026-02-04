@@ -1,7 +1,6 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { MenuType } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
 export async function getCaptainMenu() {
@@ -29,7 +28,7 @@ export async function getTables() {
         return await prisma.table.findMany({
             orderBy: { number: 'asc' }
         });
-    } catch (error) {
+    } catch {
         return [];
     }
 }

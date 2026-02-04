@@ -1,0 +1,5 @@
+﻿
+> restaurant@0.1.0 lint
+> next lint
+
+ظ£¤ No ESLint warnings or errors

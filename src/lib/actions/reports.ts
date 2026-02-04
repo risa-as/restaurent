@@ -59,7 +59,7 @@ export async function getSalesTrends(): Promise<{ date: string; revenue: number 
         });
 
         // Group by Date
-        const grouped = bills.reduce((acc: Record<string, number>, bill: any) => {
+        const grouped = bills.reduce((acc: Record<string, number>, bill) => {
             const dateStr = format(bill.paidAt, 'MM/dd', { locale: ar });
             acc[dateStr] = (acc[dateStr] || 0) + bill.amount;
             return acc;

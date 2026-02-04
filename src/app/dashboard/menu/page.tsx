@@ -71,6 +71,7 @@ export default async function MenuPage({
                                 <TableRow key={item.id}>
                                     <TableCell>
                                         <div className="h-10 w-10 bg-gray-100 rounded-md overflow-hidden">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img
                                                 src={item.image || "https://placehold.co/100x100/e2e8f0/64748b?text=img"}
                                                 alt={item.name}
