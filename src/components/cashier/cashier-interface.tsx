@@ -67,7 +67,7 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[calc(100vh-140px)]">
             {/* Right Column: Order List */}
-            <div className="border rounded-xl bg-white shadow-sm flex flex-col overflow-hidden">
+            <div className="border rounded-xl bg-card shadow-sm flex flex-col overflow-hidden">
                 <div className="p-4 border-b bg-muted/30 font-semibold flex justify-between items-center">
                     <span>قائمة الطلبات الجاهزة ({orders.length})</span>
                     <Button variant="ghost" size="icon" onClick={async () => {
@@ -77,7 +77,7 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
                         <RefreshCw className="w-4 h-4" />
                     </Button>
                 </div>
-                <ScrollArea className="flex-1 p-4 bg-gray-50/50">
+                <ScrollArea className="flex-1 p-4 bg-muted/20">
                     <div className="space-y-3">
                         {orders.length === 0 ? (
                             <div className="text-center text-muted-foreground py-10">لا توجد طلبات جاهزة حالياً</div>
@@ -86,21 +86,21 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
                                 <div
                                     key={order.id}
                                     onClick={() => setSelectedOrder(order)}
-                                    className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${selectedOrder?.id === order.id ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-white hover:border-primary/50'}`}
+                                    className={`p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md ${selectedOrder?.id === order.id ? 'bg-primary/5 border-primary ring-1 ring-primary' : 'bg-card hover:border-primary/50'}`}
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="font-bold text-lg">#{order.orderNumber}</div>
-                                        <div className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">جاهز</div>
+                                        <div className="text-xs bg-green-500/15 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">جاهز</div>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm text-gray-600">
+                                    <div className="flex justify-between items-center text-sm text-muted-foreground">
                                         <div className="flex items-center gap-2">
                                             {order.table && <span className="flex items-center gap-1"><Utensils className="w-3 h-3" /> طاولة {order.table.number}</span>}
                                             {order.delivery && <span className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /> توصيل</span>}
                                             {!order.table && !order.delivery && <span className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /> سفري</span>}
                                         </div>
-                                        <div className="font-bold text-black">{order.totalAmount.toFixed(0)} د.ع</div>
+                                        <div className="font-bold text-foreground">{order.totalAmount.toFixed(0)} د.ع</div>
                                     </div>
-                                    <div className="text-[10px] text-gray-400 mt-2 text-left dir-ltr">
+                                    <div className="text-[10px] text-muted-foreground mt-2 text-left dir-ltr">
                                         {format(new Date(order.createdAt), 'hh:mm a')}
                                     </div>
                                 </div>
@@ -111,7 +111,7 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
             </div>
 
             {/* Left Column: Order Details */}
-            <div className="border rounded-xl bg-white shadow-sm flex flex-col overflow-hidden">
+            <div className="border rounded-xl bg-card shadow-sm flex flex-col overflow-hidden">
                 <div className="p-4 border-b bg-muted/30 font-semibold">تفاصيل الطلب المحدد</div>
                 {selectedOrder ? (
                     <>
@@ -135,7 +135,7 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
                                 ))}
                             </div>
 
-                            <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
+                            <div className="space-y-2 bg-muted/40 p-4 rounded-lg">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">المجموع</span>
                                     <span>{selectedOrder.totalAmount.toFixed(0)} د.ع</span>
@@ -147,7 +147,7 @@ export function CashierInterface({ initialOrders }: CashierInterfaceProps) {
                                 </div>
                             </div>
                         </ScrollArea>
-                        <div className="p-4 border-t bg-gray-50">
+                        <div className="p-4 border-t bg-muted/30">
                             <Button
                                 className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700"
                                 onClick={() => handlePayment(selectedOrder.id)}

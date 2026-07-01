@@ -1,14 +1,9 @@
-import { getUnsettledCashierBills } from '@/lib/actions/accountant';
-import { SettlementTable } from '@/components/accountant/settlement-table';
+import { redirect } from 'next/navigation';
 
-export default async function CashierSettlementPage() {
-    const bills = await getUnsettledCashierBills();
+export const metadata = {
+    title: 'تسوية الكاشير',
+};
 
-    return (
-        <SettlementTable
-            bills={bills}
-            title="تصفيات الكاشير (في الذمة)"
-            emptyMessage="لا توجد مبالغ معلقة لدى الكاشير."
-        />
-    );
+export default function AccountantCashierRedirect() {
+    redirect('/dashboard/accountant/cashier');
 }

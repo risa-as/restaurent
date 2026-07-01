@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { updateDeliveryStatus } from '@/lib/actions/delivery';
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useRef } from 'react';
 import { Phone, MapPin, Navigation, CheckCircle, Clock, Package, DollarSign, RefreshCw, History, Bike } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DriverLocationEmitter } from '@/components/delivery/driver-location-emitter';
 
 type DeliveryWithRelations = Delivery & {
     order: Order & { items: (OrderItem & { menuItem: MenuItem })[] };
@@ -21,37 +22,38 @@ type DeliveryWithRelations = Delivery & {
 
 interface DriverDashboardProps {
     deliveries: DeliveryWithRelations[];
+    historyDeliveries: DeliveryWithRelations[];
+    onRefresh?: () => void | Promise<void>;
 }
 
-export function DriverDashboard({ deliveries }: DriverDashboardProps) {
+export function DriverDashboard({ deliveries, historyDeliveries, onRefresh }: DriverDashboardProps) {
     const router = useRouter();
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const refreshData = () => {
+    // Prefer the CSR background refetch; fall back to router.refresh() (SSR).
+    const refresh = onRefresh ?? (() => router.refresh());
+    const refreshRef = useRef(refresh);
+    refreshRef.current = refresh;
+
+    const refreshData = async () => {
         setIsRefreshing(true);
-        router.refresh();
+        await refresh();
         setTimeout(() => setIsRefreshing(false), 1000);
     };
 
     // Auto-refresh every 10 seconds
     useEffect(() => {
         const interval = setInterval(() => {
-            router.refresh();
+            refreshRef.current();
         }, 10000);
         return () => clearInterval(interval);
-    }, [router]);
+    }, []);
 
-    // Filter out delivered/cancelled orders from the main view to keep it clean, 
-    // or maybe show them in a separate tab? 
-    // For now, let's show active tasks at the top.
-
-    // Sort: Assigned first, then Out for Delivery.
     const activeDeliveries = deliveries
-        .filter(d => ['ASSIGNED', 'OUT_FOR_DELIVERY'].includes(d.status))
+        .filter(d => ['ASSIGNED', 'ON_THE_WAY'].includes(d.status))
         .sort((a, b) => new Date(b.order.createdAt).getTime() - new Date(a.order.createdAt).getTime());
 
-    const completedDeliveries = deliveries
-        .filter(d => ['DELIVERED', 'CANCELLED'].includes(d.status))
+    const completedDeliveries = [...historyDeliveries]
         .sort((a, b) => new Date(b.order.updatedAt).getTime() - new Date(a.order.updatedAt).getTime());
 
     return (
@@ -79,13 +81,16 @@ export function DriverDashboard({ deliveries }: DriverDashboardProps) {
                     <TabsTrigger value="history" className="flex items-center gap-2">
                         <History className="w-4 h-4" />
                         الأرشيف
+                        {completedDeliveries.length > 0 && (
+                            <Badge variant="secondary" className="mr-1 px-1.5 py-0 h-5 text-[10px] min-w-4 flex justify-center">{completedDeliveries.length}</Badge>
+                        )}
                     </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="active" className="space-y-4">
                     {activeDeliveries.length > 0 ? (
                         activeDeliveries.map(delivery => (
-                            <DriverOrderCard key={delivery.id} delivery={delivery} />
+                            <DriverOrderCard key={delivery.id} delivery={delivery} onRefresh={refresh} />
                         ))
                     ) : (
                         <div className="text-center py-10 bg-white rounded-xl border border-dashed shadow-sm">
@@ -105,8 +110,11 @@ export function DriverDashboard({ deliveries }: DriverDashboardProps) {
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className="font-bold text-sm text-gray-900">#{delivery.order.orderNumber}</div>
-                                        <Badge variant={delivery.status === 'CANCELLED' ? 'destructive' : 'outline'} className={delivery.status === 'DELIVERED' ? 'bg-green-50 text-green-700 border-green-200' : ''}>
-                                            {delivery.status === 'DELIVERED' ? 'تم التوصيل' : 'ملغي'}
+                                        <Badge
+                                            variant={delivery.status === 'CANCELLED' || delivery.status === 'RETURNED' ? 'destructive' : 'outline'}
+                                            className={delivery.status === 'DELIVERED' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                                        >
+                                            {delivery.status === 'DELIVERED' ? 'تم التوصيل' : delivery.status === 'RETURNED' ? 'مُرتجع' : 'ملغي'}
                                         </Badge>
                                     </div>
                                     <div className="text-xs text-muted-foreground flex items-center gap-1">
@@ -133,9 +141,10 @@ export function DriverDashboard({ deliveries }: DriverDashboardProps) {
     );
 }
 
-function DriverOrderCard({ delivery }: { delivery: DeliveryWithRelations }) {
+function DriverOrderCard({ delivery, onRefresh }: { delivery: DeliveryWithRelations; onRefresh?: () => void | Promise<void> }) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+    const router = useRouter();
 
     const handleCall = () => {
         window.open(`tel:${delivery.customerPhone}`);
@@ -148,19 +157,20 @@ function DriverOrderCard({ delivery }: { delivery: DeliveryWithRelations }) {
         window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
     };
 
-    const handleStatusUpdate = (newStatus: 'OUT_FOR_DELIVERY' | 'DELIVERED') => {
+    const handleStatusUpdate = (newStatus: 'ON_THE_WAY' | 'DELIVERED') => {
         startTransition(async () => {
             const result = await updateDeliveryStatus(delivery.id, newStatus);
-            if (!result) { // Assuming result returns updated object or throws
-                toast({ title: "فشل التحديث", variant: "destructive" });
+            if (result?.error) {
+                toast({ title: "فشل التحديث", description: result.error, variant: "destructive" });
             } else {
                 toast({ title: "تم تحديث الحالة بنجاح" });
+                await (onRefresh ? onRefresh() : router.refresh());
             }
         });
     };
 
     const isAssigned = delivery.status === 'ASSIGNED';
-    const isOut = delivery.status === 'OUT_FOR_DELIVERY';
+    const isOut = delivery.status === 'ON_THE_WAY';
 
     return (
         <Card className={`overflow-hidden border-0 shadow-lg ring-1 ${isOut ? 'ring-blue-200 shadow-blue-100' : 'ring-gray-200'}`}>
@@ -229,23 +239,35 @@ function DriverOrderCard({ delivery }: { delivery: DeliveryWithRelations }) {
                     </div>
                 </div>
 
+                {/* GPS emitter — invisible, sends location when OUT_FOR_DELIVERY */}
+                <DriverLocationEmitter
+                    deliveryId={delivery.id}
+                    isActive={isOut}
+                />
 
             </CardContent>
 
             <CardFooter className="p-4 pt-0 bg-white">
                 {isAssigned && (
-                    <Button
-                        className="w-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 shadow-blue-100 shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        onClick={() => handleStatusUpdate('OUT_FOR_DELIVERY')}
-                        disabled={isPending}
-                    >
-                        {isPending ? 'جاري التحديث...' : (
-                            <span className="flex items-center gap-2">
-                                استلام الطلب والبدء
-                                <Navigation className="w-5 h-5" />
-                            </span>
-                        )}
-                    </Button>
+                    delivery.order.status !== 'READY' ? (
+                        <div className="w-full h-12 flex items-center justify-center gap-2 rounded-lg bg-orange-50 border border-orange-200 text-orange-600 text-sm font-medium">
+                            <Clock className="w-4 h-4" />
+                            لا يزال الطلب قيد التحضير...
+                        </div>
+                    ) : (
+                        <Button
+                            className="w-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 shadow-blue-100 shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            onClick={() => handleStatusUpdate('ON_THE_WAY')}
+                            disabled={isPending}
+                        >
+                            {isPending ? 'جاري التحديث...' : (
+                                <span className="flex items-center gap-2">
+                                    استلام الطلب والبدء
+                                    <Navigation className="w-5 h-5" />
+                                </span>
+                            )}
+                        </Button>
+                    )
                 )}
                 {isOut && (
                     <Button

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,14 +20,22 @@ type MenuItemWithRecipe = MenuItem & {
 interface RecipeManagerProps {
     menuItems: MenuItemWithRecipe[];
     rawMaterials: RawMaterial[];
+    defaultItemId?: string;
 }
 
-export function RecipeManager({ menuItems, rawMaterials }: RecipeManagerProps) {
-    const [selectedItemId, setSelectedItemId] = useState<string>('');
+export function RecipeManager({ menuItems, rawMaterials, defaultItemId }: RecipeManagerProps) {
+    const [selectedItemId, setSelectedItemId] = useState<string>(defaultItemId || '');
     const [selectedMaterialId, setSelectedMaterialId] = useState<string>('');
     const [quantity, setQuantity] = useState<number>(0);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+
+    // تطبيق الصنف الافتراضي عند التغيير (عند القدوم من رابط خارجي)
+    useEffect(() => {
+        if (defaultItemId) {
+            setSelectedItemId(defaultItemId);
+        }
+    }, [defaultItemId]);
 
     const selectedItem = menuItems.find(i => i.id === selectedItemId);
 
@@ -88,18 +96,18 @@ export function RecipeManager({ menuItems, rawMaterials }: RecipeManagerProps) {
                     </Select>
 
                     {selectedItem && (
-                        <div className="bg-slate-50 p-4 rounded-lg border space-y-2 mt-4">
+                        <div className="bg-muted/40 p-4 rounded-lg border space-y-2 mt-4">
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">سعر البيع:</span>
                                 <span className="font-bold">{selectedItem.price.toLocaleString()} د.ع</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">تكلفة المكونات:</span>
-                                <span className="font-bold text-red-600">{totalCost.toLocaleString()} د.ع</span>
+                                <span className="font-bold text-destructive">{totalCost.toLocaleString()} د.ع</span>
                             </div>
                             <div className="border-t pt-2 mt-2 flex justify-between text-sm">
                                 <span className="text-muted-foreground">هامش الربح:</span>
-                                <span className={`font-bold ${profitMargin > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                <span className={`font-bold ${profitMargin > 0 ? 'text-green-500 dark:text-green-400' : 'text-destructive'}`}>
                                     {profitMargin.toLocaleString()} د.ع
                                 </span>
                             </div>
@@ -115,7 +123,7 @@ export function RecipeManager({ menuItems, rawMaterials }: RecipeManagerProps) {
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col gap-4">
                     {/* Add Form */}
-                    <div className="flex gap-2 items-end bg-gray-50 p-3 rounded-lg border">
+                    <div className="flex gap-2 items-end bg-muted/30 p-3 rounded-lg border">
                         <div className="flex-1 space-y-1">
                             <label className="text-xs font-semibold">المادة الخام</label>
                             <Select
@@ -123,7 +131,7 @@ export function RecipeManager({ menuItems, rawMaterials }: RecipeManagerProps) {
                                 onValueChange={setSelectedMaterialId}
                                 disabled={!selectedItem}
                             >
-                                <SelectTrigger className="bg-white">
+                                <SelectTrigger>
                                     <SelectValue placeholder="اختر مادة..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px]" dir="rtl">
@@ -139,7 +147,6 @@ export function RecipeManager({ menuItems, rawMaterials }: RecipeManagerProps) {
                             <label className="text-xs font-semibold">الكمية</label>
                             <Input
                                 type="number"
-                                className="bg-white"
                                 placeholder="0"
                                 min="0"
                                 step="0.1"
@@ -196,7 +203,7 @@ export function RecipeManager({ menuItems, rawMaterials }: RecipeManagerProps) {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                                                     onClick={() => handleRemove(item.id)}
                                                     disabled={isPending}
                                                 >

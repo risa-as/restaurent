@@ -4,11 +4,23 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { OrderStatus } from '@prisma/client';
+import { verifyRole, getCurrentUser } from '@/lib/auth-guard';
+import { triggerPusher } from '@/lib/pusher';
+import { getBranchFilter } from '@/lib/utils/branch-filter';
+import { requireTenantId } from '@/lib/utils/require-tenant';
 
 export async function getKitchenOrders() {
     try {
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
+        if (!tenantId) return [];
+
+        const branchFilter = await getBranchFilter(tenantId);
+
         const orders = await prisma.order.findMany({
             where: {
+                tenantId,
+                ...branchFilter,
                 OR: [
                     { status: { in: ['PENDING', 'PREPARING'] } },
                     { status: 'READY', delivery: null },
@@ -22,6 +34,11 @@ export async function getKitchenOrders() {
                         menuItem: {
                             include: {
                                 category: true
+                            }
+                        },
+                        modifiers: {
+                            include: {
+                                modifierOption: true
                             }
                         }
                     }
@@ -37,23 +54,32 @@ export async function getKitchenOrders() {
 }
 
 export async function updateKitchenItemStatus(itemIds: string[], status: OrderStatus) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'CHEF']);
+    // OrderItem has no tenantId column and is NOT auto-scoped by the Prisma
+    // extension — scope every item operation via its order's tenant or a CHEF
+    // could mutate another tenant's order items by guessing IDs (cross-tenant IDOR).
+    requireTenantId(tenantId);
     try {
+        let finalOrderStatus: OrderStatus = 'PENDING' as OrderStatus;
+        let resolvedOrderId: string | null = null;
+
         await prisma.$transaction(async (tx) => {
-            // 1. Update the specific items
+            // 1. Update the specific items — scoped to the caller's tenant via the order
             await tx.orderItem.updateMany({
-                where: { id: { in: itemIds } },
+                where: { id: { in: itemIds }, order: { tenantId } },
                 data: { status }
             });
 
-            // 2. Get the Order ID (assume all items belong to same order for now, or fetch first)
+            // 2. Get the Order ID (also tenant-scoped)
             const firstItem = await tx.orderItem.findFirst({
-                where: { id: itemIds[0] },
+                where: { id: itemIds[0], order: { tenantId } },
                 select: { orderId: true }
             });
 
             if (!firstItem) return;
 
             const orderId = firstItem.orderId;
+            resolvedOrderId = orderId;
 
             // 3. Check ALL items in this order to determine Order Status
             const allItems = await tx.orderItem.findMany({
@@ -70,6 +96,8 @@ export async function updateKitchenItemStatus(itemIds: string[], status: OrderSt
                 newOrderStatus = 'PREPARING';
             }
 
+            finalOrderStatus = newOrderStatus;
+
             // 4. Update Order Status
             await tx.order.update({
                 where: { id: orderId },
@@ -80,11 +108,29 @@ export async function updateKitchenItemStatus(itemIds: string[], status: OrderSt
         });
 
         revalidatePath('/dashboard/kitchen');
-        revalidatePath('/kitchen'); // Also revalidate the public page
+        revalidatePath('/kitchen');
         revalidatePath('/dashboard/orders');
+        revalidatePath('/waiter');
+
+        // Always notify kitchen board (for real-time refresh)
+        await triggerPusher(`tenant-${tenantId}-kitchen`, 'order-updated', { timestamp: Date.now() });
+
+        // Only notify captain when order is fully READY — NOT when just PREPARING
+        if (finalOrderStatus === 'READY') {
+            // Fetch the order's branchId so captain can filter by their own branch
+            const readyOrder = resolvedOrderId
+                ? await prisma.order.findFirst({ where: { id: resolvedOrderId }, select: { branchId: true } })
+                : null;
+            await triggerPusher(`tenant-${tenantId}-orders`, 'order-ready', {
+                branchId: readyOrder?.branchId ?? null,
+                timestamp: Date.now()
+            });
+        }
+
         return { success: true };
     } catch (error) {
         console.error("Failed to update kitchen items", error);
         return { error: "Failed to update items" };
     }
 }
+

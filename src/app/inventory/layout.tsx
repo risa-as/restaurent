@@ -1,28 +1,31 @@
-import { InventorySidebar } from '@/components/inventory/inventory-sidebar';
-import Link from 'next/link';
+import { GlobalSidebar } from '@/components/layout/global-sidebar';
+import { GlobalHeader } from '@/components/layout/global-header';
+import { auth } from '@/lib/auth';
+import { Toaster } from '@/components/ui/toaster';
 
-export default function InventoryLayout({
+export default async function InventoryLayout({
     children,
 }: {
     children: React.ReactNode
 }) {
+    const session = await auth();
+
     return (
-        <div className="flex h-screen bg-gray-50 text-right" dir="rtl">
-            <InventorySidebar />
-            <main className="flex-1 flex flex-col h-full overflow-hidden">
-                <header className="h-16 border-b bg-card flex items-center justify-between px-6 shrink-0">
-                    <div className="flex items-center gap-2">
-                        <span className="font-bold text-lg">مطعم المنصور</span>
-                        <span className="text-sm text-muted-foreground">| نظام إدارة المخزون</span>
+        <div className="flex h-screen w-full overflow-hidden bg-background" dir="rtl">
+            <GlobalSidebar
+                userRole={session?.user?.role}
+                userName={session?.user?.name ?? undefined}
+                userEmail={session?.user?.email ?? undefined}
+            />
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                <GlobalHeader />
+                <main className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-auto p-6">
+                        {children}
                     </div>
-                    <Link href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-primary">
-                        العودة للوحة التحكم
-                    </Link>
-                </header>
-                <div className="flex-1 overflow-auto p-6">
-                    {children}
-                </div>
-            </main>
+                </main>
+            </div>
+            <Toaster />
         </div>
     );
 }

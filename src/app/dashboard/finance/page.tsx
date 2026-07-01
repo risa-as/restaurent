@@ -1,5 +1,9 @@
-import { FinanceDashboard } from '@/components/finance/finance-dashboard';
+import { redirect } from 'next/navigation';
 
-export default function FinancePage() {
-    return <FinanceDashboard />;
+export const metadata = {
+    title: 'المالية',
+};
+
+export default function FinanceRedirect() {
+    redirect('/dashboard/accountant/finance');
 }

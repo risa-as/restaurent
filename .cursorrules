@@ -1,0 +1,19 @@
+# CRITICAL RULE: DO NOT use the editor's integrated terminal for any commands (like npm, npx, or prisma). ALWAYS instruct the user to run the commands manually in a separate PowerShell window.
+
+## Project: Restaurant Management System
+- **Framework**: Next.js 14 (App Router) — Monolith (Frontend + Backend)
+- **Database**: PostgreSQL via Prisma ORM
+- **Auth**: NextAuth v5 (beta.30) with Credentials Provider
+- **Language**: TypeScript
+- **Styling**: TailwindCSS + Radix UI (Shadcn)
+- **Validation**: Zod
+- **UI Direction**: RTL (Arabic)
+
+## Development Rules
+1. **Terminal Usage**: NEVER execute commands in the integrated terminal. Provide all commands (e.g., `npx prisma migrate dev`, `npm run dev`) as instructions for the user to run in an external PowerShell window.
+2. **Database Changes**: No schema changes without explicit user permission. Always show the full diff before applying.
+3. **Server Actions**: All Server Actions (`'use server'`) must verify user role via `verifyRole()` before executing sensitive operations.
+4. **Soft Delete**: Use `isDeleted` flag instead of hard deletes for important models.
+5. **Error Handling**: Always return `{ success: true }` or `{ error: string }` from Server Actions — never throw unhandled errors.
+6. **Revalidation**: Always call `revalidatePath()` after mutations.
+7. **Transactions**: Use `prisma.$transaction()` for multi-step operations that must be atomic.

@@ -1,0 +1,96 @@
+{
+    "name": "نظام إدارة المطعم",
+    "short_name": "المطعم",
+    "description": "منصة متكاملة لإدارة المطعم — الطلبات، المطبخ، الكاشير، التوصيل",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0f172a",
+    "theme_color": "#f97316",
+    "orientation": "any",
+    "lang": "ar",
+    "dir": "rtl",
+    "scope": "/",
+    "categories": [
+        "food",
+        "business",
+        "productivity"
+    ],
+    "icons": [
+        {
+            "src": "/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon-192-maskable.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon-512-maskable.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "الكاشير",
+            "short_name": "كاشير",
+            "url": "/cashier",
+            "description": "نقطة البيع والطلبات",
+            "icons": [
+                {
+                    "src": "/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "النادل",
+            "short_name": "نادل",
+            "url": "/waiter",
+            "description": "طلبات الطاولات",
+            "icons": [
+                {
+                    "src": "/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "المطبخ",
+            "short_name": "مطبخ",
+            "url": "/kitchen",
+            "description": "شاشة المطبخ",
+            "icons": [
+                {
+                    "src": "/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "التوصيل",
+            "short_name": "توصيل",
+            "url": "/delivery",
+            "description": "إدارة التوصيل",
+            "icons": [
+                {
+                    "src": "/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "screenshots": [],
+    "prefer_related_applications": false
+}

@@ -22,6 +22,7 @@ import { checkoutOrder } from '@/lib/actions/payments';
 import { useState, useTransition } from 'react';
 import { PaymentMethod } from '@prisma/client';
 import { DollarSign } from 'lucide-react';
+import { formatNumber } from '@/lib/utils';
 
 interface PaymentDialogProps {
     order: Order & { items: (OrderItem & { menuItem: MenuItem })[] };
@@ -63,7 +64,7 @@ export function PaymentDialog({ order }: PaymentDialogProps) {
                 <div className="py-4 space-y-4">
                     <div className="flex justify-between items-center text-xl font-bold p-4 bg-muted rounded">
                         <span>المبلغ الإجمالي</span>
-                        <span>{total.toFixed(0)} د.ع</span>
+                        <span>{formatNumber(total)} د.ع</span>
                     </div>
 
                     <div className="space-y-2">

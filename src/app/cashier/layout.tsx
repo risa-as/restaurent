@@ -1,8 +1,8 @@
-
-
 import { auth } from '@/lib/auth';
 import { Toaster } from '@/components/ui/toaster';
-import { RoleHeader } from '@/components/layout/role-header';
+import { GlobalSidebar } from '@/components/layout/global-sidebar';
+import { GlobalHeader } from '@/components/layout/global-header';
+import { NetworkStatusBanner } from '@/components/offline/network-status-banner';
 
 export default async function CashierLayout({
     children,
@@ -12,13 +12,19 @@ export default async function CashierLayout({
     const session = await auth();
 
     return (
-        <div className="flex flex-col h-screen w-full bg-gray-50">
-            {/* Minimal Header or Custom Header for Cashier */}
-            {/* Minimal Header or Custom Header for Cashier */}
-            <RoleHeader title="نظام الكاشير" session={session} />
-            <main className="flex-1 p-6 overflow-hidden">
-                {children}
-            </main>
+        <div className="flex h-screen w-full overflow-hidden bg-background" dir="rtl">
+            <GlobalSidebar
+                userRole={session?.user?.role}
+                userName={session?.user?.name ?? undefined}
+                userEmail={session?.user?.email ?? undefined}
+            />
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                <NetworkStatusBanner />
+                <GlobalHeader />
+                <main className="flex-1 overflow-hidden">
+                    {children}
+                </main>
+            </div>
             <Toaster />
         </div>
     );

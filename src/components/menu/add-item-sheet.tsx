@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { MenuItemForm } from '@/components/menu/menu-item-form';
 import { Plus } from 'lucide-react';
-import { Category } from '@prisma/client';
+import { Branch, Category } from '@prisma/client';
 
 interface AddItemSheetProps {
     categories: Category[];
+    branches?: Branch[];
+    defaultBranchId?: string | null;
 }
 
-export function AddItemSheet({ categories }: AddItemSheetProps) {
+export function AddItemSheet({ categories, branches, defaultBranchId }: AddItemSheetProps) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -26,7 +28,7 @@ export function AddItemSheet({ categories }: AddItemSheetProps) {
                     <SheetTitle>إضافة عنصر جديد</SheetTitle>
                 </SheetHeader>
                 <div className="mt-4">
-                    <MenuItemForm categories={categories} onSuccess={() => setOpen(false)} />
+                    <MenuItemForm categories={categories} onSuccess={() => setOpen(false)} branches={branches} defaultBranchId={defaultBranchId} />
                 </div>
             </SheetContent>
         </Sheet>

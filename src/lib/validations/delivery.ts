@@ -5,6 +5,8 @@ export const deliverySchema = z.object({
     customerPhone: z.string().min(8),
     address: z.string().min(5),
     deliveryFee: z.number().default(0),
+    lat: z.number().optional().nullable(),
+    lng: z.number().optional().nullable(),
 });
 
 export type DeliveryInput = z.infer<typeof deliverySchema>;

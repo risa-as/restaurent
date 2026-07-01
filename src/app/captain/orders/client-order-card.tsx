@@ -15,9 +15,10 @@ interface ClientOrderCardProps {
     order: any; // ToDo: Fix type
     config: { label: string; color: string };
     status: string;
+    onRefresh?: () => void | Promise<void>;
 }
 
-export function ClientOrderCard({ order, config, status }: ClientOrderCardProps) {
+export function ClientOrderCard({ order, config, status, onRefresh }: ClientOrderCardProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
@@ -30,6 +31,18 @@ export function ClientOrderCard({ order, config, status }: ClientOrderCardProps)
 
     const handleComplete = () => {
         startTransition(async () => {
+            // Local offline order living only on this device
+            if (typeof order.id === 'string' && order.id.startsWith('local_')) {
+                const { setLiveOrderStatus } = await import('@/lib/offline/db');
+                await setLiveOrderStatus(order.id, 'COMPLETED').catch(() => {});
+                toast({
+                    title: "تم التسليم",
+                    description: `تم تسليم الطلب رقم #${order.orderNumber} بنجاح`,
+                    className: "bg-green-500 text-white border-none"
+                });
+                await onRefresh?.();
+                return;
+            }
             const res = await markOrderCompleted(order.id);
             if (res.error) {
                 toast({
@@ -43,13 +56,14 @@ export function ClientOrderCard({ order, config, status }: ClientOrderCardProps)
                     description: `تم تسليم الطلب رقم #${order.orderNumber} بنجاح`,
                     className: "bg-green-500 text-white border-none"
                 });
+                await onRefresh?.();
             }
         });
     };
 
     return (
         <Card className="overflow-hidden border-2">
-            <CardHeader className="bg-gray-50/50 pb-3 border-b">
+            <CardHeader className="bg-muted/50 pb-3 border-b">
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <CardTitle className="text-lg">
@@ -72,20 +86,20 @@ export function ClientOrderCard({ order, config, status }: ClientOrderCardProps)
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {order.items.map((item: any) => (
-                        <div key={item.id} className={`flex items-center justify-between bg-white border p-2 rounded shadow-sm ${item.status === 'READY' ? 'border-green-200 bg-green-50' :
-                            item.status === 'PREPARING' ? 'border-orange-200 bg-orange-50' : ''
+                        <div key={item.id} className={`flex items-center justify-between bg-background border p-2 rounded shadow-sm ${item.status === 'READY' ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30' :
+                            item.status === 'PREPARING' ? 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30' : ''
                             }`}>
                             <div className="flex items-center gap-2">
-                                <span className="font-bold bg-gray-100 w-6 h-6 flex items-center justify-center rounded text-sm">
+                                <span className="font-bold bg-muted w-6 h-6 flex items-center justify-center rounded text-sm">
                                     {item.quantity}
                                 </span>
                                 <div>
                                     <div className="text-sm font-medium">{item.menuItem.name}</div>
                                     <div className="flex gap-1 mt-1">
-                                        {item.status === 'PENDING' && <Badge variant="secondary" className="text-[10px] h-4 bg-gray-200 hover:bg-gray-200 text-gray-700">انتظار</Badge>}
-                                        {item.status === 'PREPARING' && <Badge variant="secondary" className="text-[10px] h-4 bg-orange-200 hover:bg-orange-200 text-orange-800 animate-pulse">تحضير</Badge>}
-                                        {item.status === 'READY' && <Badge variant="secondary" className="text-[10px] h-4 bg-green-200 hover:bg-green-200 text-green-800">جاهز</Badge>}
-                                        {item.status === 'SERVED' && <Badge variant="secondary" className="text-[10px] h-4 bg-blue-200 hover:bg-blue-200 text-blue-800">تم التقديم</Badge>}
+                                        {item.status === 'PENDING' && <Badge variant="secondary" className="text-[10px] h-4 bg-muted hover:bg-muted text-muted-foreground">انتظار</Badge>}
+                                        {item.status === 'PREPARING' && <Badge variant="secondary" className="text-[10px] h-4 bg-orange-200 hover:bg-orange-200 text-orange-800 dark:bg-orange-900/50 dark:hover:bg-orange-900/50 dark:text-orange-300 animate-pulse">تحضير</Badge>}
+                                        {item.status === 'READY' && <Badge variant="secondary" className="text-[10px] h-4 bg-green-200 hover:bg-green-200 text-green-800 dark:bg-green-900/50 dark:hover:bg-green-900/50 dark:text-green-300">جاهز</Badge>}
+                                        {item.status === 'SERVED' && <Badge variant="secondary" className="text-[10px] h-4 bg-blue-200 hover:bg-blue-200 text-blue-800 dark:bg-blue-900/50 dark:hover:bg-blue-900/50 dark:text-blue-300">تم التقديم</Badge>}
                                     </div>
                                 </div>
                             </div>
@@ -93,13 +107,13 @@ export function ClientOrderCard({ order, config, status }: ClientOrderCardProps)
                     ))}
                 </div>
                 {order.note && (
-                    <div className="mt-3 text-sm bg-yellow-50 text-yellow-800 p-2 rounded border border-yellow-100">
+                    <div className="mt-3 text-sm bg-yellow-50 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300 p-2 rounded border border-yellow-100 dark:border-yellow-800">
                         ملاحظة: {order.note}
                     </div>
                 )}
             </CardContent>
             {order.status === 'READY' && (
-                <CardFooter className="bg-green-50/50 p-2 border-t">
+                <CardFooter className="bg-green-50/50 dark:bg-green-950/20 p-2 border-t">
                     <Button
                         className="w-full bg-green-600 hover:bg-green-700 gap-2"
                         onClick={handleComplete}

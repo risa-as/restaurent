@@ -4,29 +4,78 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { categorySchema, CategoryFormValues, menuItemSchema, MenuItemFormValues } from '@/lib/validations/menu';
+import { verifyRole, getCurrentUser } from '@/lib/auth-guard';
+import { checkPlanCount, checkPlanModule } from '@/lib/plan-limits';
+import { requireTenantId } from '@/lib/utils/require-tenant';
+import { getActiveBranchId, resolveCreateBranchId, getOperationalBranchWhere } from '@/lib/utils/branch-filter';
+import { triggerPusher } from '@/lib/pusher';
+import { getActiveSeasonalMenu } from '@/lib/actions/seasonal-menus';
 
 // --- Categories ---
 
 export async function getCategories() {
     try {
-        return await prisma.category.findMany({
-            orderBy: { name: 'asc' }
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
+        if (!tenantId) return [];
+        const branchId = await getActiveBranchId(tenantId);
+        const branchWhere = await getOperationalBranchWhere(tenantId);
+        const seasonalMenu = await getActiveSeasonalMenu(branchId);
+        const seasonalCategoryIds = seasonalMenu
+            ? new Set(seasonalMenu.categories.map((c: { categoryId: string }) => c.categoryId))
+            : null;
+
+        const allCategories = await prisma.category.findMany({
+            where: { tenantId, ...branchWhere },
+            orderBy: { name: 'asc' },
+            include: {
+                _count: { select: { items: { where: { isDeleted: false } } } }
+            }
         });
+
+        return seasonalCategoryIds
+            ? allCategories.filter(c => seasonalCategoryIds.has(c.id))
+            : allCategories;
     } catch (error) {
         console.error("Failed to fetch categories", error);
         return [];
     }
 }
 
+// Fetches all categories for the active branch without seasonal menu filtering.
+// Use this in admin settings pages where all categories must be available for selection.
+export async function getAdminCategories() {
+    try {
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
+        if (!tenantId) return [];
+        const branchWhere = await getOperationalBranchWhere(tenantId);
+        return prisma.category.findMany({
+            where: { tenantId, ...branchWhere },
+            orderBy: { name: 'asc' },
+            include: {
+                _count: { select: { items: { where: { isDeleted: false } } } }
+            }
+        });
+    } catch (error) {
+        console.error("Failed to fetch admin categories", error);
+        return [];
+    }
+}
+
 
 export async function createCategory(data: CategoryFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     const validated = categorySchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
     try {
-        await prisma.category.create({ data: validated.data });
+        await prisma.category.create({
+            data: { ...validated.data, tenantId, branchId: await resolveCreateBranchId(tenantId, validated.data.branchId) }
+        });
         revalidatePath('/dashboard/menu');
-        revalidatePath('/kitchen/categories');
+        await triggerPusher(`menu-${tenantId}`, 'menu-updated', {});
         return { success: true };
     } catch (error) {
         console.error("Failed to create category", error);
@@ -35,16 +84,23 @@ export async function createCategory(data: CategoryFormValues) {
 }
 
 export async function updateCategory(id: string, data: CategoryFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     const validated = categorySchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
     try {
+        const existing = await prisma.category.findFirst({
+            where: { id, tenantId }
+        });
+        if (!existing) return { error: "Category not found or access denied" };
+
         await prisma.category.update({
             where: { id },
-            data: validated.data
+            data: { ...validated.data, branchId: await resolveCreateBranchId(tenantId, validated.data.branchId) }
         });
         revalidatePath('/dashboard/menu');
-        revalidatePath('/kitchen/categories');
+        await triggerPusher(`menu-${tenantId}`, 'menu-updated', {});
         return { success: true };
     } catch (error) {
         console.error("Failed to update category", error);
@@ -53,7 +109,14 @@ export async function updateCategory(id: string, data: CategoryFormValues) {
 }
 
 export async function deleteCategory(id: string) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     try {
+        const existing = await prisma.category.findFirst({
+            where: { id, tenantId }
+        });
+        if (!existing) return { error: "Category not found or access denied" };
+
         const itemsCount = await prisma.menuItem.count({
             where: { categoryId: id }
         });
@@ -64,7 +127,7 @@ export async function deleteCategory(id: string) {
 
         await prisma.category.delete({ where: { id } });
         revalidatePath('/dashboard/menu');
-        revalidatePath('/kitchen/categories');
+        await triggerPusher(`menu-${tenantId}`, 'menu-updated', {});
         return { success: true };
     } catch (error) {
         console.error("Failed to delete category", error);
@@ -76,9 +139,16 @@ export async function deleteCategory(id: string) {
 
 export async function getMenuItems(query?: string) {
     try {
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
+        if (!tenantId) return [];
+        const branchWhere = await getOperationalBranchWhere(tenantId);
         const items = await prisma.menuItem.findMany({
             where: {
-                name: { contains: query, mode: 'insensitive' }
+                isDeleted: false,
+                tenantId,
+                ...branchWhere,
+                ...(query ? { name: { contains: query, mode: 'insensitive' } } : {}),
             },
             include: {
                 category: true,
@@ -98,17 +168,24 @@ export async function getMenuItems(query?: string) {
 }
 
 export async function createMenuItem(data: MenuItemFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     const validated = menuItemSchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
-    const { recipe, ...itemData } = validated.data;
+    const { recipe, images, ...itemData } = validated.data;
 
     try {
+        await checkPlanCount(tenantId, 'menuItem');
+
         await prisma.$transaction(async (tx) => {
             const menuItem = await tx.menuItem.create({
                 data: {
                     ...itemData,
-                    image: itemData.image || null,
+                    image: images[0] || null,
+                    images,
+                    tenantId,
+                    branchId: await resolveCreateBranchId(tenantId, itemData.branchId),
                 }
             });
 
@@ -124,32 +201,40 @@ export async function createMenuItem(data: MenuItemFormValues) {
         });
 
         revalidatePath('/dashboard/menu');
+        await triggerPusher(`menu-${tenantId}`, 'menu-updated', {});
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.upgradeRequired) return { error: error.message, upgradeRequired: true };
         console.error("Failed to create menu item", error);
         return { error: "Failed to create menu item" };
     }
 }
 
 export async function updateMenuItem(id: string, data: MenuItemFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     const validated = menuItemSchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
-    const { recipe, ...itemData } = validated.data;
+    const { recipe, images, ...itemData } = validated.data;
 
     try {
+        const existing = await prisma.menuItem.findFirst({
+            where: { id, tenantId }
+        });
+        if (!existing) return { error: "Menu item not found or access denied" };
+
         await prisma.$transaction(async (tx) => {
-            // Update basic info
             await tx.menuItem.update({
                 where: { id },
                 data: {
                     ...itemData,
-                    image: itemData.image || null,
+                    image: images[0] || null,
+                    images,
+                    branchId: await resolveCreateBranchId(tenantId, itemData.branchId),
                 }
             });
 
-            // Update Recipe: Wipe old items and re-create (simplest strategy for now)
-            // A smarter diffing strategy could be used if performance is verified as issue.
             if (recipe) {
                 await tx.recipeItem.deleteMany({
                     where: { menuItemId: id }
@@ -168,6 +253,7 @@ export async function updateMenuItem(id: string, data: MenuItemFormValues) {
         });
 
         revalidatePath('/dashboard/menu');
+        await triggerPusher(`menu-${tenantId}`, 'menu-updated', {});
         return { success: true };
     } catch (error) {
         console.error("Failed to update menu item", error);
@@ -176,14 +262,20 @@ export async function updateMenuItem(id: string, data: MenuItemFormValues) {
 }
 
 export async function deleteMenuItem(id: string) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     try {
-        await prisma.menuItem.delete({ where: { id } }); // Cascade delete handles recipe items? 
-        // Need to check schema. RecipeItem relations usually need explicit cascade or prisma handles it if defined.
-        // In my schema: `recipe RecipeItem[]` exists. `menuItem MenuItem` in RecipeItem.
-        // I didn't verify onDelete: Cascade in schema.
-        // Let's quickly double check logic or assume application-level delete if needed.
-        // Actually, let's just try. If it fails, I'll update schema.
+        const existing = await prisma.menuItem.findFirst({
+            where: { id, tenantId }
+        });
+        if (!existing) return { error: "Menu item not found or access denied" };
+
+        await prisma.menuItem.update({
+            where: { id },
+            data: { isDeleted: true, deletedAt: new Date() }
+        });
         revalidatePath('/dashboard/menu');
+        await triggerPusher(`menu-${tenantId}`, 'menu-updated', {});
         return { success: true };
     } catch (error) {
         console.error("Failed to delete item", error);
@@ -195,7 +287,15 @@ export async function deleteMenuItem(id: string) {
 
 export async function getMenuAnalysis() {
     try {
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
+        if (!tenantId) return [];
+        const branchId = await getActiveBranchId(tenantId);
+        const branchWhere = branchId
+            ? { branchId }
+            : {};
         const items = await prisma.menuItem.findMany({
+            where: { tenantId, isDeleted: false, ...branchWhere },
             include: {
                 recipe: {
                     include: {
@@ -206,20 +306,14 @@ export async function getMenuAnalysis() {
             }
         });
 
-        // Calculate metrics
         const analysis = items.map(item => {
             const cost = item.recipe.reduce((acc, r) => acc + (r.quantity * r.material.costPerUnit), 0);
             const margin = item.price - cost;
             const marginPct = item.price > 0 ? (margin / item.price) * 100 : 0;
-            return {
-                ...item,
-                cost,
-                margin,
-                marginPct
-            };
+            return { ...item, cost, margin, marginPct };
         });
 
-        return analysis.sort((a, b) => b.marginPct - a.marginPct); // Default sort by efficiency
+        return analysis.sort((a, b) => b.marginPct - a.marginPct);
     } catch (error) {
         console.error("Failed to get menu analysis", error);
         return [];
@@ -232,10 +326,16 @@ import { offerSchema, OfferFormValues } from '@/lib/validations/menu';
 
 export async function getOffers() {
     try {
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
+        if (!tenantId) return [];
+        const branchId = await getActiveBranchId(tenantId);
+        const branchWhere = branchId
+            ? { branchId }
+            : {};
         return await prisma.offer.findMany({
-            include: {
-                menuItems: true
-            },
+            where: { tenantId, ...branchWhere },
+            include: { menuItems: true },
             orderBy: { endDate: 'desc' }
         });
     } catch (error) {
@@ -245,17 +345,22 @@ export async function getOffers() {
 }
 
 export async function createOffer(data: OfferFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
+    await checkPlanModule(tenantId, 'offers');
     const validated = offerSchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
     try {
         await prisma.offer.create({
             data: {
+                tenantId,
                 name: data.name,
                 discountPct: data.discountPct,
                 startDate: data.startDate,
                 endDate: data.endDate,
                 isActive: data.isActive,
+                branchId: await resolveCreateBranchId(tenantId, data.branchId),
                 menuItems: {
                     connect: data.menuItemIds.map(id => ({ id }))
                 }
@@ -270,7 +375,11 @@ export async function createOffer(data: OfferFormValues) {
 }
 
 export async function toggleOfferStatus(id: string, isActive: boolean) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
     try {
+        const existing = await prisma.offer.findFirst({ where: { id, tenantId } });
+        if (!existing) return { error: "Offer not found or access denied" };
         await prisma.offer.update({
             where: { id },
             data: { isActive }
@@ -279,5 +388,49 @@ export async function toggleOfferStatus(id: string, isActive: boolean) {
         return { success: true };
     } catch (error) {
         return { error: "Failed to update offer" };
+    }
+}
+
+export async function updateOffer(id: string, data: OfferFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
+    const validated = offerSchema.safeParse(data);
+    if (!validated.success) return { error: "Invalid fields" };
+    try {
+        const existing = await prisma.offer.findFirst({ where: { id, tenantId } });
+        if (!existing) return { error: "Offer not found or access denied" };
+        await prisma.offer.update({
+            where: { id },
+            data: {
+                name: data.name,
+                discountPct: data.discountPct,
+                startDate: data.startDate,
+                endDate: data.endDate,
+                isActive: data.isActive,
+                branchId: await resolveCreateBranchId(tenantId, data.branchId),
+                menuItems: {
+                    set: data.menuItemIds.map(itemId => ({ id: itemId }))
+                }
+            }
+        });
+        revalidatePath('/dashboard/menu/offers');
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to update offer", error);
+        return { error: "Failed to update offer" };
+    }
+}
+
+export async function deleteOffer(id: string) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER']);
+    requireTenantId(tenantId);
+    try {
+        const existing = await prisma.offer.findFirst({ where: { id, tenantId } });
+        if (!existing) return { error: "Offer not found or access denied" };
+        await prisma.offer.delete({ where: { id } });
+        revalidatePath('/dashboard/menu/offers');
+        return { success: true };
+    } catch (error) {
+        return { error: "Failed to delete offer" };
     }
 }

@@ -9,6 +9,7 @@ import { ar } from 'date-fns/locale';
 import { Clock } from 'lucide-react';
 import Link from 'next/link';
 import { updateOrderStatus } from '@/lib/actions/orders';
+import { formatNumber } from '@/lib/utils';
 import { PaymentDialog } from './payment-dialog';
 import {
     Dialog,
@@ -80,7 +81,7 @@ export function OrderCard({ order }: OrderCardProps) {
             <CardContent className="pb-3 grid gap-2">
                 <div className="flex justify-between items-center bg-muted/20 p-2 rounded text-sm">
                     <div className="font-medium">{order.items.length} أصناف</div>
-                    <div className="font-bold">{order.totalAmount.toFixed(0)} د.ع</div>
+                    <div className="font-bold">{formatNumber(order.totalAmount)} د.ع</div>
                 </div>
 
                 {order.note && (
@@ -112,12 +113,12 @@ export function OrderCard({ order }: OrderCardProps) {
                                             <div className="font-medium">{item.quantity}x {item.menuItem.name}</div>
                                             {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
                                         </div>
-                                        <div className="font-bold">{item.totalPrice.toFixed(0)} د.ع</div>
+                                        <div className="font-bold">{formatNumber(item.totalPrice)} د.ع</div>
                                     </div>
                                 ))}
                                 <div className="flex justify-between pt-4 font-bold text-lg">
                                     <span>المجموع</span>
-                                    <span>{order.totalAmount.toFixed(0)} د.ع</span>
+                                    <span>{formatNumber(order.totalAmount)} د.ع</span>
                                 </div>
                             </div>
                         </ScrollArea>

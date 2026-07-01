@@ -1,25 +1,23 @@
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { CashierPageClient } from '@/components/cashier/cashier-page-client';
 
-import { getCashierOrders, getCashierHistory } from '@/lib/actions/cashier';
-import { getPOSData } from '@/lib/actions/pos';
-import { CashierView } from '@/components/cashier/cashier-view';
+export const metadata = {
+    title: 'الكاشير',
+};
 
 export const dynamic = 'force-dynamic';
 
 export default async function CashierPage() {
-    const orders = await getCashierOrders();
-    const history = await getCashierHistory();
-    const { categories, menuItems, tables } = await getPOSData();
+  const session = await auth();
+  if (!session?.user) redirect('/login');
 
-    return (
-        <div className="h-full">
-            <h1 className="text-2xl font-bold mb-4 hidden print:block">نظام الكاشير</h1>
-            <CashierView
-                initialOrders={orders}
-                historyOrders={history}
-                categories={categories}
-                menuItems={menuItems}
-                tables={tables}
-            />
-        </div>
-    );
+  const tenantId = (session.user as any).tenantId ?? '';
+  const cashierName = (session.user as any).name ?? '';
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <CashierPageClient tenantId={tenantId} cashierName={cashierName} />
+    </div>
+  );
 }

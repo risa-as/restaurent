@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { formatNumber } from '@/lib/utils';
 
 // Extending MenuItem to include related offers as returned by server action
 interface POSMenuItem extends MenuItem {
@@ -111,8 +112,10 @@ export function CartSidebar({ items, onUpdateQuantity, onRemove, onClear, tables
                 {/* Section 1: Cart Items (Takes 30% of the available vertical space) */}
                 <div className="basis-[30%] overflow-y-auto p-4 space-y-4 border-b min-h-0">
                     {items.length === 0 ? (
-                        <div className="text-center text-muted-foreground py-10">
-                            السلة فارغة
+                        <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-10">
+                            <span className="text-5xl">🛒</span>
+                            <p className="text-sm font-medium text-muted-foreground">السلة فارغة</p>
+                            <p className="text-xs text-muted-foreground/70">ابدأ بإضافة أصناف من القائمة</p>
                         </div>
                     ) : (
                         items.map(item => {
@@ -129,22 +132,22 @@ export function CartSidebar({ items, onUpdateQuantity, onRemove, onClear, tables
                                     <div className="flex justify-between items-start">
                                         <span className="font-medium text-sm">{item.menuItem.name}</span>
                                         <span className="font-bold text-sm">
-                                            {(price * item.quantity).toFixed(0)} د.ع
+                                            {formatNumber(price * item.quantity)} د.ع
                                         </span>
                                     </div>
                                     {discounted && <Badge variant="secondary" className="w-fit text-[10px] h-4">عرض خاص</Badge>}
                                     <div className="flex items-center justify-between mt-1">
-                                        <div className="flex items-center gap-1">
-                                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => onUpdateQuantity(item.menuItem.id, -1)}>
-                                                <Minus className="h-3 w-3" />
+                                        <div className="flex items-center gap-1.5">
+                                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onUpdateQuantity(item.menuItem.id, -1)}>
+                                                <Minus className="h-4 w-4" />
                                             </Button>
-                                            <span className="text-sm w-4 text-center">{item.quantity}</span>
-                                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => onUpdateQuantity(item.menuItem.id, 1)}>
-                                                <Plus className="h-3 w-3" />
+                                            <span className="text-base font-bold w-6 text-center">{item.quantity}</span>
+                                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onUpdateQuantity(item.menuItem.id, 1)}>
+                                                <Plus className="h-4 w-4" />
                                             </Button>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => onRemove(item.menuItem.id)}>
-                                            <Trash2 className="h-3 w-3" />
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onRemove(item.menuItem.id)}>
+                                            <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </div>
@@ -222,14 +225,27 @@ export function CartSidebar({ items, onUpdateQuantity, onRemove, onClear, tables
                     />
                 </div>
 
-                {/* Section 3: Footer (Takes 20% of the available vertical space) */}
-                <div className="basis-[20%] p-4 bg-background shadow-up flex flex-col justify-center min-h-0">
-                    <div className="flex justify-between items-center text-lg font-bold mb-2">
-                        <span>المجموع</span>
-                        <span>{total.toFixed(0)} د.ع</span>
+                <div className="shrink-0 p-4 bg-card border-t shadow-lg">
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-base font-semibold text-muted-foreground">الإجمالي</span>
+                        <span className="text-2xl font-black text-foreground">
+                            {formatNumber(total)}
+                            <span className="text-sm font-normal text-muted-foreground me-1"> د.ع</span>
+                        </span>
                     </div>
-                    <Button className="w-full h-12 text-lg" onClick={handlePlaceOrder} disabled={items.length === 0 || isSubmitting}>
-                        {isSubmitting ? 'جاري الإرسال...' : 'إرسال الطلب'}
+                    <Button
+                        className="w-full h-16 text-lg font-black gap-2 bg-accent hover:bg-accent/90 text-accent-foreground shadow-md shadow-accent/20 transition-all active:scale-[0.98]"
+                        onClick={handlePlaceOrder}
+                        disabled={items.length === 0 || isSubmitting}
+                    >
+                        {isSubmitting ? (
+                            <span className="flex items-center gap-2">جاري الإرسال...</span>
+                        ) : (
+                            <span className="flex flex-col items-center leading-tight">
+                                <span>إرسال الطلب</span>
+                                {items.length > 0 && <span className="text-sm font-normal opacity-80">{formatNumber(total)} د.ع</span>}
+                            </span>
+                        )}
                     </Button>
                 </div>
             </div>

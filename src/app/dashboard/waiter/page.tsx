@@ -2,6 +2,10 @@ import { getReadyOrders } from '@/lib/actions/waiter';
 import { WaiterDashboard } from '@/components/waiter/waiter-dashboard';
 import { Utensils } from 'lucide-react';
 
+export const metadata = {
+    title: 'النادل',
+};
+
 export const dynamic = 'force-dynamic';
 
 export default async function WaiterPage() {

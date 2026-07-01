@@ -1,10 +1,10 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTransition } from 'react';
 import { CategoryFormValues, categorySchema } from '@/lib/validations/menu';
-import { Category } from '@prisma/client';
+import { Branch, Category } from '@prisma/client';
 import { createCategory, updateCategory } from '@/lib/actions/menu';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -17,47 +17,59 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { DialogFooter } from '@/components/ui/dialog';
 
 interface CategoryFormProps {
     initialData?: Category;
     onSuccess: () => void;
+    branches?: Branch[];
+    defaultBranchId?: string | null;
 }
 
-export function CategoryForm({ initialData, onSuccess }: CategoryFormProps) {
+export function CategoryForm({ initialData, onSuccess, branches, defaultBranchId }: CategoryFormProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+    const showBranchSelector = (branches?.length ?? 0) > 1;
 
     const form = useForm<CategoryFormValues>({
-        resolver: zodResolver(categorySchema),
+        resolver: zodResolver(categorySchema) as Resolver<CategoryFormValues>,
         defaultValues: {
             name: initialData?.name || '',
+            branchId: (initialData as any)?.branchId ?? defaultBranchId ?? null,
         },
     });
 
     function onSubmit(data: CategoryFormValues) {
         startTransition(async () => {
-            let res;
-            if (initialData) {
-                res = await updateCategory(initialData.id, data);
-            } else {
-                res = await createCategory(data);
-            }
+            const res = initialData
+                ? await updateCategory(initialData.id, data)
+                : await createCategory(data);
 
             if (res.success) {
                 toast({
-                    title: initialData ? "تم تحديث القسم بنجاح" : "تم إنشاء القسم بنجاح",
+                    title: initialData ? 'تم تحديث القسم بنجاح' : 'تم إنشاء القسم بنجاح',
                 });
                 if (!initialData) {
-                    form.reset();
+                    form.reset({
+                        name: '',
+                        branchId: defaultBranchId ?? null,
+                    });
                 }
                 onSuccess();
-            } else {
-                toast({
-                    variant: "destructive",
-                    title: initialData ? "فشل تحديث القسم" : "فشل إنشاء القسم",
-                });
+                return;
             }
+
+            toast({
+                variant: 'destructive',
+                title: initialData ? 'فشل تحديث القسم' : 'فشل إنشاء القسم',
+            });
         });
     }
 
@@ -77,9 +89,41 @@ export function CategoryForm({ initialData, onSuccess }: CategoryFormProps) {
                         </FormItem>
                     )}
                 />
+
+                {showBranchSelector && (
+                    <FormField
+                        control={form.control}
+                        name="branchId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>الفرع</FormLabel>
+                                <Select
+                                    onValueChange={(v) => field.onChange(v === '__all__' ? null : v)}
+                                    value={field.value ?? '__all__'}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="اختر الفرع" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="__all__">كل الفروع</SelectItem>
+                                        {branches!.map(branch => (
+                                            <SelectItem key={branch.id} value={branch.id}>
+                                                {branch.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+
                 <DialogFooter>
                     <Button type="submit" disabled={isPending}>
-                        {isPending ? 'جاري الحفظ...' : initialData ? 'تحديث القسم' : 'انشاء قسم'}
+                        {isPending ? 'جارٍ الحفظ...' : initialData ? 'تحديث القسم' : 'إنشاء قسم'}
                     </Button>
                 </DialogFooter>
             </form>

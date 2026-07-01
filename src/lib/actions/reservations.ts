@@ -4,34 +4,32 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { reservationSchema, ReservationFormValues } from '@/lib/validations/reservations';
+import { ReservationStatus } from '@prisma/client';
+import { verifyRole, getCurrentUser } from '@/lib/auth-guard';
+import { getActiveBranchId, resolveCreateBranchId } from '@/lib/utils/branch-filter';
+import { checkPlanModule } from '@/lib/plan-limits';
 
-export async function getReservations(date?: Date) {
+export async function getReservations() {
     try {
-        const today = date || new Date();
-        // Start of day
-        const start = new Date(today);
-        start.setHours(0, 0, 0, 0);
-        // End of day
-        // End of day
-        const end = new Date(today);
-        end.setHours(23, 59, 59, 999);
+        const user = await getCurrentUser();
+        const tenantId = user?.tenantId;
 
-        console.log('[getReservations] Querying for:', { start, end });
+        // Show from today midnight onwards (today + future reservations)
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const branchId = tenantId ? await getActiveBranchId(tenantId) : null;
 
         const reservations = await prisma.reservation.findMany({
             where: {
-                reservationTime: {
-                    gte: start,
-                    lte: end
-                }
+                reservationTime: { gte: todayStart },
+                ...(tenantId ? { tenantId } : {}),
+                ...(branchId ? { branchId } : {}),
             },
-            include: {
-                table: true
-            },
-            orderBy: { reservationTime: 'asc' }
+            include: { tables: true },
+            orderBy: { reservationTime: 'asc' },
         });
 
-        console.log('[getReservations] Found:', reservations.length);
         return reservations;
     } catch (error) {
         console.error("Failed to fetch reservations", error);
@@ -40,19 +38,28 @@ export async function getReservations(date?: Date) {
 }
 
 export async function createReservation(data: ReservationFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'CAPTAIN', 'WAITER']);
+    await checkPlanModule(tenantId, 'reservations');
     const validated = reservationSchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
     try {
+        const { tableIds, ...rest } = validated.data;
+        const branchId = await getActiveBranchId(tenantId);
+
         await prisma.reservation.create({
             data: {
-                ...validated.data,
-                status: 'CONFIRMED'
+                ...rest,
+                status: ReservationStatus.CONFIRMED,
+                ...(tenantId ? { tenantId } : {}),
+                branchId: await resolveCreateBranchId(tenantId, branchId),
+                ...(tableIds && tableIds.length > 0 && tableIds[0] !== 'none'
+                    ? { tables: { connect: tableIds.map(id => ({ id })) } }
+                    : {}
+                ),
             }
         });
-        console.log('[createReservation] Created reservation at:', validated.data.reservationTime);
         revalidatePath('/dashboard/reservations');
-        // In a real app, sendSMS(data.customerPhone, "Your reservation is confirmed!");
         return { success: true };
     } catch (error) {
         return { error: "Failed to create reservation" };
@@ -60,18 +67,23 @@ export async function createReservation(data: ReservationFormValues) {
 }
 
 export async function checkInReservation(reservationId: string, tableId: string) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'CAPTAIN', 'WAITER']);
     try {
+        // Verify ownership
+        const reservation = await prisma.reservation.findFirst({
+            where: { id: reservationId, ...(tenantId ? { tenantId } : {}) }
+        });
+        if (!reservation) return { error: "Reservation not found or access denied" };
+
         await prisma.$transaction(async (tx) => {
-            // 1. Update Reservation
             await tx.reservation.update({
                 where: { id: reservationId },
                 data: {
-                    status: 'COMPLETED',
-                    tableId: tableId
+                    status: ReservationStatus.COMPLETED,
+                    tables: { connect: { id: tableId } }
                 }
             });
 
-            // 2. Update Table Status
             await tx.table.update({
                 where: { id: tableId },
                 data: { status: 'OCCUPIED' }
@@ -88,10 +100,16 @@ export async function checkInReservation(reservationId: string, tableId: string)
 }
 
 export async function cancelReservation(id: string) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'CAPTAIN', 'WAITER']);
     try {
+        const existing = await prisma.reservation.findFirst({
+            where: { id, ...(tenantId ? { tenantId } : {}) }
+        });
+        if (!existing) return { error: "Reservation not found or access denied" };
+
         await prisma.reservation.update({
             where: { id },
-            data: { status: 'CANCELLED' }
+            data: { status: ReservationStatus.CANCELLED }
         });
         revalidatePath('/dashboard/reservations');
         return { success: true };
@@ -101,13 +119,30 @@ export async function cancelReservation(id: string) {
 }
 
 export async function updateReservation(id: string, data: ReservationFormValues) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'CAPTAIN', 'WAITER']);
     const validated = reservationSchema.safeParse(data);
     if (!validated.success) return { error: "Invalid fields" };
 
     try {
+        const existing = await prisma.reservation.findFirst({
+            where: { id, ...(tenantId ? { tenantId } : {}) }
+        });
+        if (!existing) return { error: "Reservation not found or access denied" };
+
+        const { tableIds, ...rest } = validated.data;
+
         await prisma.reservation.update({
             where: { id },
-            data: validated.data
+            data: {
+                ...rest,
+                tables: {
+                    set: [],
+                    ...(tableIds && tableIds.length > 0 && tableIds[0] !== 'none'
+                        ? { connect: tableIds.map(tid => ({ id: tid })) }
+                        : {}
+                    ),
+                }
+            }
         });
         revalidatePath('/dashboard/reservations');
         return { success: true };

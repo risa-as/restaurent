@@ -1,18 +1,41 @@
+export const metadata = {
+    title: 'الوصفات',
+};
+
+export const dynamic = 'force-dynamic';
+
 import { RecipeManager } from '@/components/inventory/recipe-manager';
 import { getRecipes, getRawMaterials } from '@/lib/actions/inventory';
+import { PageHeader } from '@/components/ui/page-header';
 
-export default async function RecipesPage() {
+interface RecipesPageProps {
+    searchParams?: { itemId?: string };
+}
+
+export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     const [menuItems, rawMaterials] = await Promise.all([
         getRecipes(),
         getRawMaterials()
     ]);
 
+    // استخدام الـ ID مباشرة من الـ URL للاختيار التلقائي للصنف
+    const defaultItemId = searchParams?.itemId ?? '';
+
     return (
         <div className="h-full flex flex-col space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-black text-gray-800">إدارة الوصفات</h1>
-            </div>
-            <RecipeManager menuItems={menuItems} rawMaterials={rawMaterials} />
+            <PageHeader
+                title="إدارة الوصفات"
+                subtitle="ربط الأصناف بمكوناتها الخام لحساب التكلفة وهامش الربح"
+                breadcrumbs={[
+                    { label: 'المطبخ', href: '/kitchen' },
+                    { label: 'الوصفات' }
+                ]}
+            />
+            <RecipeManager
+                menuItems={menuItems}
+                rawMaterials={rawMaterials}
+                defaultItemId={defaultItemId}
+            />
         </div>
     );
 }

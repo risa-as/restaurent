@@ -33,7 +33,7 @@ export function SalesChart({ data }: SalesChartProps) {
                                 tickFormatter={(value) => `${value} د.ع`}
                             />
                             <Tooltip
-                                formatter={(value: number | undefined) => [`${Number(value || 0).toFixed(0)} د.ع`, 'الإيرادات']}
+                                formatter={(value: any) => [`${Number(value || 0).toFixed(0)} د.ع`, 'الإيرادات']}
                             />
                             <Line
                                 type="monotone"

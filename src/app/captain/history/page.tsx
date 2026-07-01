@@ -5,6 +5,10 @@ import { CheckCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
+export const metadata = {
+    title: 'سجل الطلبات',
+};
+
 export const dynamic = 'force-dynamic';
 
 export default async function CaptainHistoryPage() {
@@ -21,18 +25,18 @@ export default async function CaptainHistoryPage() {
                     </div>
                 ) : (
                     orders.map(order => (
-                        <Card key={order.id} className="overflow-hidden bg-gray-50">
-                            <CardHeader className="bg-gray-100/50 pb-3 border-b">
+                        <Card key={order.id} className="overflow-hidden bg-card">
+                            <CardHeader className="bg-muted/50 pb-3 border-b">
                                 <div className="flex justify-between items-center">
                                     <div className="flex items-center gap-3">
-                                        <CardTitle className="text-lg text-gray-700">
+                                        <CardTitle className="text-lg text-foreground">
                                             #{order.orderNumber}
                                         </CardTitle>
                                         <span className="text-sm font-medium text-muted-foreground">
                                             {order.tableId ? `طاولة ${order.table?.number}` : 'سفري'}
                                         </span>
                                     </div>
-                                    <Badge variant="outline" className="gap-1 px-3 py-1 bg-gray-200 text-gray-700 border-gray-300">
+                                    <Badge variant="outline" className="gap-1 px-3 py-1 bg-muted text-muted-foreground border-border">
                                         <CheckCheck className="w-3 h-3" />
                                         مكتمل
                                     </Badge>
@@ -44,9 +48,9 @@ export default async function CaptainHistoryPage() {
                             <CardContent className="p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {order.items.map(item => (
-                                        <div key={item.id} className="flex items-center justify-between bg-white border p-2 rounded shadow-sm opacity-75">
+                                        <div key={item.id} className="flex items-center justify-between bg-background border p-2 rounded shadow-sm opacity-75">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold bg-gray-100 w-6 h-6 flex items-center justify-center rounded text-sm">
+                                                <span className="font-bold bg-muted w-6 h-6 flex items-center justify-center rounded text-sm">
                                                     {item.quantity}
                                                 </span>
                                                 <span className="text-sm font-medium">{item.menuItem.name}</span>

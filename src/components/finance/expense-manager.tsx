@@ -61,8 +61,7 @@ export function ExpenseManager({ expenses }: { expenses: Expense[] }) {
                 </Dialog>
             </div>
 
-            <div className="border rounded bg-card">
-                <Table>
+            <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead className="text-right">التاريخ</TableHead>
@@ -98,7 +97,6 @@ export function ExpenseManager({ expenses }: { expenses: Expense[] }) {
                         )}
                     </TableBody>
                 </Table>
-            </div>
         </div>
     )
 }

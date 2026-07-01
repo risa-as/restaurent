@@ -1,24 +1,46 @@
 'use client';
 
-import { MenuItem, Category, RecipeItem, RawMaterial } from '@prisma/client';
+import { Branch, Category, MenuItem, RecipeItem, RawMaterial, ModifierGroup, ModifierOption } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2 } from 'lucide-react';
 import { deleteMenuItem } from '@/lib/actions/menu';
+import { getItemModifiers } from '@/lib/actions/modifiers';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MenuItemForm } from './menu-item-form';
-import { useState } from 'react';
+import { ModifierGroupManager } from './modifier-group-manager';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
+type GroupWithOptions = ModifierGroup & { options: ModifierOption[]; sortOrder?: number };
 
 interface MenuItemActionsProps {
     item: MenuItem & { recipe: (RecipeItem & { material: RawMaterial })[] };
     categories: Category[];
+    branches?: Branch[];
+    defaultBranchId?: string | null;
+    tenantId?: string;
+    allModifierGroups?: GroupWithOptions[];
 }
 
-export function MenuItemActions({ item, categories }: MenuItemActionsProps) {
+export function MenuItemActions({ item, categories, branches, defaultBranchId, allModifierGroups }: MenuItemActionsProps) {
     const [open, setOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
+    const [allGroups] = useState<GroupWithOptions[]>(allModifierGroups ?? []);
+    const [attachedGroups, setAttachedGroups] = useState<GroupWithOptions[]>([]);
+    const [isLoadingModifiers, setIsLoadingModifiers] = useState(false);
     const { toast } = useToast();
+
+    useEffect(() => {
+        if (!open) return;
+        setIsLoadingModifiers(true);
+        getItemModifiers(item.id).then((attached) => {
+            setAttachedGroups(attached as GroupWithOptions[]);
+        }).finally(() => {
+            setIsLoadingModifiers(false);
+        });
+    }, [open, item.id]);
 
     return (
         <div className="flex items-center gap-2 justify-end">
@@ -33,7 +55,23 @@ export function MenuItemActions({ item, categories }: MenuItemActionsProps) {
                         <SheetTitle>تحديث العنصر</SheetTitle>
                     </SheetHeader>
                     <div className="mt-4">
-                        <MenuItemForm initialData={item} categories={categories} onSuccess={() => setOpen(false)} />
+                        <Tabs defaultValue="details">
+                            <TabsList className="w-full mb-4">
+                                <TabsTrigger value="details" className="flex-1">التفاصيل</TabsTrigger>
+                                <TabsTrigger value="modifiers" className="flex-1">الخيارات والإضافات</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="details">
+                                <MenuItemForm initialData={item} categories={categories} onSuccess={() => setOpen(false)} branches={branches} defaultBranchId={defaultBranchId} />
+                            </TabsContent>
+                            <TabsContent value="modifiers">
+                                <ModifierGroupManager
+                                    menuItemId={item.id}
+                                    allGroups={allGroups}
+                                    attachedGroups={attachedGroups}
+                                    isLoading={isLoadingModifiers}
+                                />
+                            </TabsContent>
+                        </Tabs>
                     </div>
                 </SheetContent>
             </Sheet>

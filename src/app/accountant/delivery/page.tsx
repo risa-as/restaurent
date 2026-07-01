@@ -1,14 +1,9 @@
-import { getUnsettledDeliveryBills } from '@/lib/actions/accountant';
-import { SettlementTable } from '@/components/accountant/settlement-table';
+import { redirect } from 'next/navigation';
 
-export default async function DeliverySettlementPage() {
-    const bills = await getUnsettledDeliveryBills();
+export const metadata = {
+    title: 'تسوية التوصيل',
+};
 
-    return (
-        <SettlementTable
-            bills={bills}
-            title="تصفيات التوصيل (في ذمة مدير السائقين)"
-            emptyMessage="لا توجد مبالغ معلقة لدى قسم التوصيل."
-        />
-    );
+export default function AccountantDeliveryRedirect() {
+    redirect('/dashboard/accountant/delivery');
 }

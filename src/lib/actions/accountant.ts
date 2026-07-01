@@ -3,93 +3,77 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { unstable_noStore as noStore } from 'next/cache';
+import { verifyRole } from '@/lib/auth-guard';
+import { getActiveBranchId } from '@/lib/utils/branch-filter';
 
-// Fetch all COMPLETED orders where the bill is NOT settled and was paid by CASH (or any method handled by Cashier)
-// We assume 'CASH' payments are held by Cashier.
-// Online/Card defaults to bank, but let's assume Cashier handles Cash.
 export async function getUnsettledCashierBills() {
     noStore();
     try {
-        console.log("Fetching unsettled cashier bills...");
-        const bills = await prisma.bill.findMany({
+        const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'ACCOUNTANT']);
+        const branchId = await getActiveBranchId(tenantId!);
+        const branchWhere = branchId ? { branchId } : {};
+
+        return await prisma.bill.findMany({
             where: {
+                tenantId,
                 isSettled: false,
-                paymentMethod: 'CASH', // Only Cash needs physical handover
+                paymentMethod: 'CASH',
                 order: {
                     status: { in: ['COMPLETED', 'SERVED'] },
-                    // Exclude delivery orders
-                    delivery: null
+                    delivery: null,
+                    ...branchWhere,
                 }
             },
             include: {
-                order: {
-                    include: {
-                        waiter: true,
-                        table: true
-                    }
-                }
+                order: { include: { waiter: true, table: true } }
             },
             orderBy: { paidAt: 'desc' }
         });
-        console.log(`Found ${bills.length} unsettled cashier bills.`);
-        return bills;
     } catch (error) {
         console.error("Failed to fetch cashier bills", error);
         return [];
     }
 }
 
-// Fetch all Delivery orders where the Driver has handed over cash (isCashHandedOver = true)
-// but it hasn't been settled with Accountant yet (bill.isSettled = false)
 export async function getUnsettledDeliveryBills() {
     noStore();
     try {
-        console.log("Fetching unsettled delivery bills...");
-        const bills = await prisma.bill.findMany({
+        const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'ACCOUNTANT']);
+        const branchId = await getActiveBranchId(tenantId!);
+        const branchWhere = branchId ? { branchId } : {};
+
+        return await prisma.bill.findMany({
             where: {
+                tenantId,
                 isSettled: false,
                 paymentMethod: 'CASH',
                 order: {
-                    delivery: {
-                        isCashHandedOver: true // Money is with Delivery Manager
-                    }
+                    delivery: { isCashHandedOver: true },
+                    ...branchWhere,
                 }
             },
             include: {
                 order: {
-                    include: {
-                        delivery: {
-                            include: {
-                                driver: true
-                            }
-                        }
-                    }
+                    include: { delivery: { include: { driver: true } } }
                 }
             },
             orderBy: { paidAt: 'desc' }
         });
-        console.log(`Found ${bills.length} unsettled delivery bills.`);
-        return bills;
     } catch (error) {
         console.error("Failed to fetch delivery bills", error);
         return [];
     }
 }
 
-
 export async function settleBills(billIds: string[]) {
+    const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'ACCOUNTANT']);
     try {
         await prisma.bill.updateMany({
-            where: {
-                id: { in: billIds }
-            },
-            data: {
-                isSettled: true,
-                settledAt: new Date(),
-                // collectedById: userId // ToDo: Add current user context
-            }
+            where: { id: { in: billIds }, tenantId },
+            data: { isSettled: true, settledAt: new Date() }
         });
-        revalidatePath('/accountant');
+        revalidatePath('/dashboard/accountant/cashier');
+        revalidatePath('/dashboard/accountant/delivery');
         return { success: true };
     } catch (error) {
         console.error("Failed to settle bills", error);
@@ -100,27 +84,27 @@ export async function settleBills(billIds: string[]) {
 export async function getSettledCashierBills() {
     noStore();
     try {
-        const bills = await prisma.bill.findMany({
+        const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'ACCOUNTANT']);
+        const branchId = await getActiveBranchId(tenantId!);
+        const branchWhere = branchId ? { branchId } : {};
+
+        return await prisma.bill.findMany({
             where: {
+                tenantId,
                 isSettled: true,
                 paymentMethod: 'CASH',
                 order: {
                     status: { in: ['COMPLETED', 'SERVED'] },
-                    delivery: null
+                    delivery: null,
+                    ...branchWhere,
                 }
             },
             include: {
-                order: {
-                    include: {
-                        waiter: true,
-                        table: true
-                    }
-                }
+                order: { include: { waiter: true, table: true } }
             },
             orderBy: { settledAt: 'desc' },
-            take: 100 // Limit to last 100 records for performance
+            take: 100
         });
-        return bills;
     } catch (error) {
         console.error("Failed to fetch settled cashier bills", error);
         return [];
@@ -130,31 +114,28 @@ export async function getSettledCashierBills() {
 export async function getSettledDeliveryBills() {
     noStore();
     try {
-        const bills = await prisma.bill.findMany({
+        const { tenantId } = await verifyRole(['ADMIN', 'MANAGER', 'ACCOUNTANT']);
+        const branchId = await getActiveBranchId(tenantId!);
+        const branchWhere = branchId ? { branchId } : {};
+
+        return await prisma.bill.findMany({
             where: {
+                tenantId,
                 isSettled: true,
                 paymentMethod: 'CASH',
                 order: {
-                    delivery: {
-                        isCashHandedOver: true
-                    }
+                    delivery: { isCashHandedOver: true },
+                    ...branchWhere,
                 }
             },
             include: {
                 order: {
-                    include: {
-                        delivery: {
-                            include: {
-                                driver: true
-                            }
-                        }
-                    }
+                    include: { delivery: { include: { driver: true } } }
                 }
             },
             orderBy: { settledAt: 'desc' },
-            take: 100 // Limit
+            take: 100
         });
-        return bills;
     } catch (error) {
         console.error("Failed to fetch settled delivery bills", error);
         return [];

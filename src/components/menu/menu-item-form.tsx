@@ -1,12 +1,13 @@
 'use client';
 
-import { Resolver, useFieldArray, useForm } from 'react-hook-form';
+import { Resolver, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useTransition, useEffect, useState } from 'react';
+import { useTransition } from 'react';
+import { Branch, Category, MenuItem, RawMaterial, RecipeItem } from '@prisma/client';
+
 import { useToast } from '@/hooks/use-toast';
 import { MenuItemFormValues, menuItemSchema } from '@/lib/validations/menu';
 import { createMenuItem, updateMenuItem } from '@/lib/actions/menu';
-import { getRawMaterials } from '@/lib/actions/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,24 +28,20 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { SheetFooter } from '@/components/ui/sheet';
-import { Category, MenuItem, RawMaterial, RecipeItem } from '@prisma/client';
-import { Plus, Trash2 } from 'lucide-react';
 import { ImageUpload } from '@/components/common/image-upload';
 
 interface MenuItemFormProps {
     categories: Category[];
-    initialData?: MenuItem & { recipe: (RecipeItem & { material: RawMaterial })[] };
+    initialData?: MenuItem & { recipe: (RecipeItem & { material: RawMaterial })[]; images?: string[] };
     onSuccess: () => void;
+    branches?: Branch[];
+    defaultBranchId?: string | null;
 }
 
-export function MenuItemForm({ categories, initialData, onSuccess }: MenuItemFormProps) {
+export function MenuItemForm({ categories, initialData, onSuccess, branches, defaultBranchId }: MenuItemFormProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
-    const [materials, setMaterials] = useState<RawMaterial[]>([]);
-
-    useEffect(() => {
-        getRawMaterials().then(setMaterials);
-    }, []);
+    const showBranchSelector = (branches?.length ?? 0) > 1;
 
     const form = useForm<MenuItemFormValues>({
         resolver: zodResolver(menuItemSchema) as Resolver<MenuItemFormValues>,
@@ -53,233 +50,205 @@ export function MenuItemForm({ categories, initialData, onSuccess }: MenuItemFor
             description: initialData.description || '',
             price: initialData.price,
             categoryId: initialData.categoryId,
-            image: initialData.image || '',
+            images: initialData.images || (initialData.image ? [initialData.image] : []),
             isAvailable: initialData.isAvailable,
-            recipe: initialData.recipe.map(r => ({ materialId: r.materialId, quantity: r.quantity }))
+            recipe: initialData.recipe.map((r) => ({ materialId: r.materialId, quantity: r.quantity })),
+            branchId: (initialData as MenuItem & { branchId?: string | null }).branchId ?? defaultBranchId ?? null,
         } : {
             name: '',
             description: '',
             price: 0,
             categoryId: '',
-            image: '',
+            images: [],
             isAvailable: true,
-            recipe: []
+            recipe: [],
+            branchId: defaultBranchId ?? null,
         },
-    });
-
-    const { fields, append, remove } = useFieldArray({
-        control: form.control,
-        name: "recipe",
     });
 
     function onSubmit(data: MenuItemFormValues) {
         startTransition(async () => {
-            let res;
-            if (initialData) {
-                res = await updateMenuItem(initialData.id, data);
-            } else {
-                res = await createMenuItem(data);
-            }
+            const res = initialData
+                ? await updateMenuItem(initialData.id, data)
+                : await createMenuItem(data);
 
             if (res.success) {
                 toast({
-                    title: initialData ? "تم تحديث العنصر بنجاح" : "تم إنشاء العنصر بنجاح",
+                    title: initialData ? 'تم تحديث الصنف بنجاح' : 'تم إنشاء الصنف بنجاح',
                 });
                 onSuccess();
-            } else {
-                toast({
-                    variant: "destructive",
-                    title: initialData ? "فشل تحديث العنصر" : "فشل إنشاء العنصر",
-                });
+                return;
             }
+
+            if ((res as { upgradeRequired?: boolean; error?: string }).upgradeRequired) {
+                toast({
+                    variant: 'destructive',
+                    title: 'حد الخطة',
+                    description: `${res.error} - قم بترقية الخطة من صفحة الفوترة`,
+                });
+                return;
+            }
+
+            toast({
+                variant: 'destructive',
+                title: initialData ? 'فشل تحديث الصنف' : 'فشل إنشاء الصنف',
+            });
         });
     }
 
-    // Calculate generic cost estimate based on selected ingredients for UI feedback
-    const watchedRecipe = form.watch("recipe");
-    const estimatedCost = watchedRecipe?.reduce((acc, item) => {
-        const mat = materials.find(m => m.id === item.materialId);
-        return acc + (item.quantity * (mat?.costPerUnit || 0));
-    }, 0) || 0;
-
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="space-y-4">
-                    <h3 className="text-lg font-medium">المعلومات الأساسية</h3>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+
+                <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>اسم الصنف</FormLabel>
+                            <FormControl>
+                                <Input placeholder="برغر كلاسيك" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>الوصف</FormLabel>
+                            <FormControl>
+                                <Textarea placeholder="وصف مختصر للطبق..." className="resize-none" rows={2} {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>القسم</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="اختر القسم" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {categories.map((category) => (
+                                        <SelectItem key={category.id} value={category.id}>
+                                            {category.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
-                        name="name"
+                        name="price"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>الاسم</FormLabel>
+                                <FormLabel>السعر (د.ع)</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="برغر" {...field} />
+                                    <Input type="number" step="0.01" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
+
                     <FormField
                         control={form.control}
-                        name="description"
+                        name="isAvailable"
                         render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>الوصف</FormLabel>
+                            <FormItem className="flex h-full flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                                 <FormControl>
-                                    <Textarea placeholder="وصف الطبق ومكوناته..." className="resize-none" {...field} />
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
                                 </FormControl>
-                                <FormMessage />
+                                <div className="space-y-1 leading-none">
+                                    <FormLabel>متاح للبيع</FormLabel>
+                                </div>
                             </FormItem>
                         )}
                     />
+                </div>
+
+                {showBranchSelector && (
                     <FormField
                         control={form.control}
-                        name="categoryId"
+                        name="branchId"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>القسم</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormLabel>الفرع</FormLabel>
+                                <Select
+                                    onValueChange={(value) => field.onChange(value === '__all__' ? null : value)}
+                                    value={field.value ?? '__all__'}
+                                >
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="اختر القسم" />
+                                            <SelectValue placeholder="اختر الفرع" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {categories.map(c => {
-                                            const typeMap: Record<string, string> = {
-                                                EASTERN: "شرقي",
-                                                WESTERN: "غربي",
-                                                BEVERAGE: "مشروبات",
-                                                DESSERT: "حلويات"
-                                            };
-                                            return (
-                                                <SelectItem key={c.id} value={c.id}>{c.name} ({typeMap[c.type] || c.type})</SelectItem>
-                                            )
-                                        })}
+                                        <SelectItem value="__all__">كل الفروع</SelectItem>
+                                        {branches!.map((branch) => (
+                                            <SelectItem key={branch.id} value={branch.id}>
+                                                {branch.name}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                            control={form.control}
-                            name="price"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>السعر (د.ع)</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" step="0.01" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="isAvailable"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 shadow-sm h-full items-center">
-                                    <FormControl>
-                                        <Checkbox
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </FormControl>
-                                    <div className="space-y-1 leading-none">
-                                        <FormLabel>
-                                            متاح
-                                        </FormLabel>
-                                    </div>
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-                    <FormField
-                        control={form.control}
-                        name="image"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>صورة الصنف</FormLabel>
-                                <FormControl>
-                                    <ImageUpload
-                                        value={field.value || ''}
-                                        onChange={field.onChange}
-                                        onRemove={() => field.onChange('')}
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </div>
+                )}
 
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium">الوصفة</h3>
-                        <Button type="button" variant="outline" size="sm" onClick={() => append({ materialId: '', quantity: 0 })}>
-                            <Plus className="h-4 w-4 mr-2" /> إضافة مكون
-                        </Button>
-                    </div>
-
-                    {fields.map((field, index) => (
-                        <div key={field.id} className="flex items-end gap-2">
-                            <FormField
-                                control={form.control}
-                                name={`recipe.${index}.materialId`}
-                                render={({ field }) => (
-                                    <FormItem className="flex-1">
-                                        <FormControl>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="المكون" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {materials.map(m => (
-                                                        <SelectItem key={m.id} value={m.id}>{m.name} ({m.unit})</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name={`recipe.${index}.quantity`}
-                                render={({ field }) => (
-                                    <FormItem className="w-24">
-                                        <FormControl>
-                                            <Input type="number" step="0.001" placeholder="الكمية" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                        </div>
-                    ))}
-
-                    {fields.length > 0 && (
-                        <div className="bg-muted p-2 rounded text-sm text-right">
-                            التكلفة التقديرية: <span className="font-bold">{estimatedCost.toFixed(0)} د.ع</span>
-                            <span className="mx-2">|</span>
-                            هامش الربح: <span className={estimatedCost > form.getValues('price') ? "text-red-500 font-bold" : "text-green-600 font-bold"}>
-                                {form.getValues('price') > 0 ? (((form.getValues('price') - estimatedCost) / form.getValues('price')) * 100).toFixed(1) : 0}%
-                            </span>
-                        </div>
+                <FormField
+                    control={form.control}
+                    name="images"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>صورة الصنف</FormLabel>
+                            <FormControl>
+                                <ImageUpload
+                                    value={field.value || []}
+                                    onChange={field.onChange}
+                                    onRemove={(imageUrl) => {
+                                        field.onChange((field.value || []).filter((value) => value !== imageUrl));
+                                    }}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
                     )}
-                </div>
+                />
+
+                {/* تنبيه لربط الوصفة لاحقًا */}
+                {!initialData && (
+                    <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-700/50 dark:bg-amber-950/20 dark:text-amber-400">
+                        💡 بعد إنشاء الصنف، توجّه إلى صفحة <strong>الوصفات</strong> لربطه بمكوناته وحساب تكلفته.
+                    </div>
+                )}
 
                 <SheetFooter>
-                    <Button type="submit" disabled={isPending}>{isPending ? 'جاري الحفظ...' : initialData ? 'تحديث العنصر' : 'انشاء العنصر'}</Button>
+                    <Button type="submit" className="w-full" disabled={isPending}>
+                        {isPending ? 'جارٍ الحفظ...' : initialData ? 'تحديث الصنف' : 'إنشاء الصنف'}
+                    </Button>
                 </SheetFooter>
             </form>
         </Form>

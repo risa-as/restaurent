@@ -76,8 +76,8 @@ export function DriverFinance({ deliveries }: DriverFinanceProps) {
                             <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-center gap-3">
-                                        <div className="bg-orange-100 p-2 rounded-full">
-                                            <UserIcon className="w-5 h-5 text-orange-600" />
+                                        <div className="bg-accent/15 p-2 rounded-full">
+                                            <UserIcon className="w-5 h-5 text-accent" />
                                         </div>
                                         <div>
                                             <CardTitle className="text-lg font-bold">{driverName}</CardTitle>
@@ -86,14 +86,14 @@ export function DriverFinance({ deliveries }: DriverFinanceProps) {
                                             </CardDescription>
                                         </div>
                                     </div>
-                                    <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                                    <Badge variant="outline" className="text-accent border-accent/30 bg-accent/10">
                                         مستحق للدفع
                                     </Badge>
                                 </div>
                             </CardHeader>
                             <CardContent>
                                 <div className="mt-2 flex items-baseline gap-1">
-                                    <span className="text-2xl font-bold text-gray-900">{total.toFixed(0)}</span>
+                                    <span className="text-2xl font-bold text-foreground">{total.toFixed(0)}</span>
                                     <span className="text-xs text-muted-foreground font-medium">د.ع</span>
                                 </div>
                             </CardContent>
@@ -102,7 +102,7 @@ export function DriverFinance({ deliveries }: DriverFinanceProps) {
                 })}
 
                 {Object.keys(driverGroups).length === 0 && (
-                    <div className="col-span-full text-center py-12 bg-white rounded-xl border border-dashed">
+                    <div className="col-span-full text-center py-12 bg-card rounded-xl border border-dashed">
                         <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
                         <h3 className="text-lg font-medium">لا توجد مبالغ معلقة</h3>
                         <p className="text-muted-foreground">جميع السائقين قاموا بتسليم المبالغ المستحقة.</p>
@@ -125,13 +125,13 @@ export function DriverFinance({ deliveries }: DriverFinanceProps) {
 
                     {selectedDriverId && driverGroups[selectedDriverId] && (
                         <div className="space-y-4">
-                            <div className="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
+                            <div className="bg-muted/40 p-4 rounded-lg flex justify-between items-center">
                                 <div>
-                                    <p className="text-sm text-gray-500">اسم السائق</p>
+                                    <p className="text-sm text-muted-foreground">اسم السائق</p>
                                     <p className="font-bold">{driverGroups[selectedDriverId].driver?.name}</p>
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm text-gray-500">المبلغ الإجمالي</p>
+                                    <p className="text-sm text-muted-foreground">المبلغ الإجمالي</p>
                                     <p className="text-xl font-bold text-primary">{driverGroups[selectedDriverId].totalAmount.toFixed(0)} د.ع</p>
                                 </div>
                             </div>

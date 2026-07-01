@@ -24,7 +24,6 @@ export async function authenticate(
         });
 
         if (user) {
-            console.log('[Authenticate Action] Found user:', user.email, 'Role:', user.role);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             switch (user.role as any) {
                 case 'STORE_MANAGER':
@@ -49,6 +48,9 @@ export async function authenticate(
                 case 'ACCOUNTANT':
                     redirectTo = '/accountant';
                     break;
+                case 'SUPER_ADMIN':
+                    redirectTo = '/superadmin';
+                    break;
                 case 'ADMIN':
                 case 'MANAGER':
                     redirectTo = '/dashboard';
@@ -56,24 +58,19 @@ export async function authenticate(
                 default:
                     redirectTo = '/dashboard';
             }
-        } else {
-            console.log('[Authenticate Action] User not found during pre-fetch');
         }
 
-        console.log('[Authenticate Action] Calling signIn with redirectTo:', redirectTo);
 
         // Use redirect: false to prevent NextAuth from managing the redirect.
         // We will handle it manually to ensure it goes where we want.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = await signIn('credentials', formData, { redirect: false } as any);
+        const _result = await signIn('credentials', formData, { redirect: false } as any);
 
-        console.log('[Authenticate Action] SignIn result:', result);
 
         // If we get here, it means no error was thrown (if redirect: false works as expected in this version)
         // or we need to check the result. 
         // In some versions, it returns { ok: true, url: ... } or { error: ... }
 
-        console.log('[Authenticate Action] Manually redirecting to:', redirectTo);
         redirect(redirectTo);
 
     } catch (error) {
@@ -86,18 +83,15 @@ export async function authenticate(
             // Extract the target URL from the error digest to check if it's an error redirect
             // Format is usually: NEXT_REDIRECT;type;url;status
             const redirectUrl = err.digest.split(';')[2] || '';
-            console.log('[Authenticate Action] Caught redirect to:', redirectUrl);
 
             // If the redirect URL contains an error parameter (e.g. ?error=CredentialsSignin), it means login failed.
             // We should let this redirect happen so the user sees the error message.
             if (redirectUrl.includes('error=') || redirectUrl.includes('code=')) {
-                console.log('[Authenticate Action] Passing through error redirect');
                 throw error;
             }
 
             // If it's a "success" redirect (e.g. to /login or /dashboard default), we override it.
             // This fixes the issue where NextAuth or Middleware forces the user back to /login.
-            console.log('[Authenticate Action] Overriding default redirect. Forcing:', redirectTo);
             redirect(redirectTo);
         }
 

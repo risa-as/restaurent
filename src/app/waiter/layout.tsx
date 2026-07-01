@@ -1,7 +1,8 @@
-
 import { auth } from '@/lib/auth';
 import { Toaster } from '@/components/ui/toaster';
-import { UserNav } from '@/components/layout/user-nav';
+import { GlobalSidebar } from '@/components/layout/global-sidebar';
+import { GlobalHeader } from '@/components/layout/global-header';
+import { NetworkStatusBanner } from '@/components/offline/network-status-banner';
 
 export default async function WaiterLayout({
     children,
@@ -11,16 +12,19 @@ export default async function WaiterLayout({
     const session = await auth();
 
     return (
-        <div className="flex flex-col h-screen w-full bg-gray-50">
-            <div className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm">
-                <div className="font-bold text-xl">توصيل الطلبات (النادلون)</div>
-                <div className="flex items-center gap-4">
-                    <UserNav session={session} />
-                </div>
+        <div className="flex h-[100dvh] w-full overflow-hidden bg-background" dir="rtl">
+            <GlobalSidebar
+                userRole={session?.user?.role}
+                userName={session?.user?.name ?? undefined}
+                userEmail={session?.user?.email ?? undefined}
+            />
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                <NetworkStatusBanner />
+                <GlobalHeader />
+                <main className="flex-1 overflow-y-auto">
+                    {children}
+                </main>
             </div>
-            <main className="flex-1 p-4 overflow-hidden">
-                {children}
-            </main>
             <Toaster />
         </div>
     );

@@ -33,7 +33,7 @@ export function DraggableTable({ table, isEditing, onStatusClick }: DraggableTab
         AVAILABLE: "bg-green-100 border-green-500 text-green-700",
         OCCUPIED: "bg-red-100 border-red-500 text-red-700",
         RESERVED: "bg-yellow-100 border-yellow-500 text-yellow-700",
-        DIRTY: "bg-gray-100 border-gray-500 text-gray-700"
+        DIRTY: "bg-muted border-muted-foreground/50 text-muted-foreground"
     }[table.status];
 
     const activeOrder = table.orders?.[0];

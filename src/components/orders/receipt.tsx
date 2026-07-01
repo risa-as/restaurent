@@ -1,13 +1,19 @@
 
 'use client';
 
-import { Order, OrderItem, MenuItem, Table, Delivery, User } from '@prisma/client';
+import { Order, OrderItem, MenuItem, Table, Delivery, User, OrderItemModifier, ModifierOption } from '@prisma/client';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { formatNumber } from '@/lib/utils';
+
+type ReceiptOrderItem = OrderItem & {
+    menuItem: MenuItem;
+    modifiers?: (OrderItemModifier & { modifierOption: ModifierOption })[];
+};
 
 interface ReceiptProps {
     order: Order & {
-        items: (OrderItem & { menuItem: MenuItem })[];
+        items: ReceiptOrderItem[];
         table: Table | null;
         delivery: (Delivery & { driver: User | null }) | null;
     };
@@ -71,11 +77,23 @@ export function Receipt({ order }: ReceiptProps) {
                     </thead>
                     <tbody>
                         {items.map((item) => (
-                            <tr key={item.id}>
-                                <td className="py-1">{item.menuItem.name}</td>
-                                <td className="py-1 text-center">{item.quantity}</td>
-                                <td className="py-1 text-left">{(item.totalPrice).toFixed(0)}</td>
-                            </tr>
+                            <>
+                                <tr key={item.id}>
+                                    <td className="py-1">{item.menuItem.name}</td>
+                                    <td className="py-1 text-center">{item.quantity}</td>
+                                    <td className="py-1 text-left">{formatNumber(item.totalPrice)}</td>
+                                </tr>
+                                {item.modifiers && item.modifiers.length > 0 && item.modifiers.map((mod) => (
+                                    <tr key={mod.id}>
+                                        <td className="pr-3 pb-0.5 text-[10px] text-gray-600" colSpan={2}>
+                                            + {mod.modifierOption.nameAr || mod.modifierOption.name}
+                                        </td>
+                                        <td className="pb-0.5 text-left text-[10px] text-gray-600">
+                                            {mod.appliedPrice > 0 ? `+${formatNumber(mod.appliedPrice)}` : ''}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </>
                         ))}
                     </tbody>
                 </table>
@@ -84,23 +102,23 @@ export function Receipt({ order }: ReceiptProps) {
             <div className="border-t border-dashed border-black pt-2 space-y-1 mb-4">
                 <div className="flex justify-between">
                     <span>المجموع الفرعي:</span>
-                    <span>{subtotal.toFixed(0)}</span>
+                    <span>{formatNumber(subtotal)}</span>
                 </div>
                 {tax > 0 && (
                     <div className="flex justify-between">
                         <span>الضريبة:</span>
-                        <span>{tax.toFixed(0)}</span>
+                        <span>{formatNumber(tax)}</span>
                     </div>
                 )}
                 {serviceFee > 0 && (
                     <div className="flex justify-between">
                         <span>الخدمة:</span>
-                        <span>{serviceFee.toFixed(0)}</span>
+                        <span>{formatNumber(serviceFee)}</span>
                     </div>
                 )}
                 <div className="flex justify-between font-bold text-sm border-t border-black pt-1 mt-1">
                     <span>الإجمالي:</span>
-                    <span>{totalAmount.toFixed(0)} د.ع</span>
+                    <span>{formatNumber(totalAmount)} د.ع</span>
                 </div>
             </div>
 

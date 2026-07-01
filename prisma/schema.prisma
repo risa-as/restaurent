@@ -8,41 +8,100 @@ datasource db {
 }
 
 model User {
-  id         String     @id @default(cuid())
-  name       String
-  email      String     @unique
-  password   String
-  role       UserRole   @default(WAITER)
-  phone      String?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  auditLogs  AuditLog[]
-  deliveries Delivery[]
-  orders     Order[]    @relation("OrderWaiter")
-  collectedBills Bill[] @relation("BillCollector")
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      UserRole  @default(WAITER)
+  phone     String?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  auditLogs        AuditLog[]
+  deliveries       Delivery[]
+  orders           Order[]         @relation("OrderWaiter")
+  collectedBills   Bill[]          @relation("BillCollector")
+  recordedExpenses Expense[]       @relation("ExpenseRecorder")
+  dailyCloses      DailyClose[]    @relation("DailyCloser")
+  approvedPayments ManualPayment[] @relation("PaymentApprover")
+  announcements    Announcement[]  @relation("AnnouncementCreator")
+
+  twoFactorEnabled     Boolean   @default(false)
+  twoFactorSecret      String?
+  twoFactorBackupCodes String?
+  twoFactorVerifiedAt  DateTime?
+  twoFactorEmail       String?
+  language             Language  @default(AR)
+
+  passwordResetTokens   PasswordResetToken[]
+  cashierShifts         CashierShift[]       @relation("ShiftCashier")
+  purchaseOrdersCreated PurchaseOrder[]      @relation("POCreator")
+  voidRequestsMade      VoidRequest[]        @relation("VoidRequester")
+  voidRequestsApproved  VoidRequest[]        @relation("VoidApprover")
+
+  @@index([tenantId])
 }
 
 model RawMaterial {
-  id            String                 @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
   unit          String
-  currentStock  Float                  @default(0)
-  minStockLevel Float                  @default(5)
-  costPerUnit   Float                  @default(0)
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
-  transactions  InventoryTransaction[]
-  recipeItems   RecipeItem[]
+  currentStock  Float     @default(0)
+  minStockLevel Float     @default(5)
+  costPerUnit   Float     @default(0)
+  isDeleted     Boolean   @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  transactions       InventoryTransaction[]
+  recipeItems        RecipeItem[]
+  batches            InventoryBatch[]
+  modifierOptions    ModifierOption[]
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model Supplier {
-  id        String                 @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   contact   String?
   phone     String?
   email     String?
-  createdAt DateTime               @default(now())
-  purchases InventoryTransaction[]
+  address   String?
+  isActive  Boolean   @default(true)
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  purchases      InventoryTransaction[]
+  purchaseOrders PurchaseOrder[]
+  payments       SupplierPayment[]
+
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model InventoryTransaction {
@@ -59,27 +118,64 @@ model InventoryTransaction {
 }
 
 model Category {
-  id    String     @id @default(cuid())
-  name  String
-  image String?
-  type  MenuType   @default(EASTERN)
-  items MenuItem[]
+  id     String  @id @default(cuid())
+  name   String
+  image  String?
+  nameAr String?
+  nameKu String?
+  nameEn String?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  stationId String?
+  station   KitchenStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
+
+  items         MenuItem[]
+  seasonalMenus SeasonalMenuCategory[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([stationId])
 }
 
 model MenuItem {
-  id          String       @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  image       String?
-  isAvailable Boolean      @default(true)
-  categoryId  String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  category    Category     @relation(fields: [categoryId], references: [id])
-  orderItems  OrderItem[]
-  recipe      RecipeItem[]
-  offers      Offer[]      @relation("MenuItemOffers")
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  price        Float
+  image        String?
+  images       String[]  @default([])
+  isAvailable  Boolean   @default(true)
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  categoryId   String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  nameAr       String?
+  nameKu       String?
+  nameEn       String?
+  prepTimeMins Int?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  category       Category                @relation(fields: [categoryId], references: [id])
+  orderItems     OrderItem[]
+  recipe         RecipeItem[]
+  offers         Offer[]                 @relation("MenuItemOffers")
+  modifierGroups MenuItemModifierGroup[]
+  stations       MenuItemStation[]
+  seasonalMenus  SeasonalMenuItem[]
+
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model RecipeItem {
@@ -100,64 +196,123 @@ model Offer {
   endDate     DateTime
   isActive    Boolean    @default(true)
   menuItems   MenuItem[] @relation("MenuItemOffers")
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model Table {
-  id           String        @id @default(cuid())
-  number       String        @unique
-  capacity     Int
-  status       TableStatus   @default(AVAILABLE)
-  x            Int           @default(0)
-  y            Int           @default(0)
-  reservations Reservation[]
+  id            String      @id @default(cuid())
+  number        String
+  capacity      Int
+  status        TableStatus @default(AVAILABLE)
+  x             Int         @default(0)
+  y             Int         @default(0)
+  occupiedSince DateTime?
+  reviewAfter   Int?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  reservations Reservation[] @relation("ReservationTables")
   orders       Order[]
+
+  @@unique([tenantId, branchId, number])
+  @@index([tenantId])
 }
 
 model Reservation {
-  id              String   @id @default(cuid())
+  id              String            @id @default(cuid())
   customerName    String
   customerPhone   String
   guests          Int
   reservationTime DateTime
   notes           String?
-  status          String   @default("CONFIRMED")
-  tableId         String?
-  table           Table?   @relation(fields: [tableId], references: [id])
+  status          ReservationStatus @default(CONFIRMED)
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  tables Table[] @relation("ReservationTables")
+
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model Order {
-  id          String      @id @default(cuid())
-  orderNumber Int         @unique @default(autoincrement())
-  status      OrderStatus @default(PENDING)
-  totalAmount Float       @default(0)
-  tax         Float       @default(0)
-  serviceFee  Float       @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  note        String?
-  tableId     String?
-  waiterId    String?
-  bills       Bill[]
-  delivery    Delivery?
-  items       OrderItem[]
-  table       Table?      @relation(fields: [tableId], references: [id])
-  waiter      User?       @relation("OrderWaiter", fields: [waiterId], references: [id])
+  id              String      @id @default(cuid())
+  orderNumber     Int         @unique @default(autoincrement())
+  status          OrderStatus @default(PENDING)
+  totalAmount     Float       @default(0)
+  tax             Float       @default(0)
+  serviceFee      Float       @default(0)
+  isDeleted       Boolean     @default(false)
+  billRequested   Boolean     @default(false)
+  billRequestedAt DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  note            String?
+  qrSessionToken  String?
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  tableId      String?
+  waiterId     String?
+  bills        Bill[]
+  delivery     Delivery?
+  items        OrderItem[]
+  table        Table?            @relation(fields: [tableId], references: [id])
+  waiter       User?             @relation("OrderWaiter", fields: [waiterId], references: [id])
+  customerId   String?
+  customer     Customer?         @relation(fields: [customerId], references: [id])
+  feedback     CustomerFeedback?
+  voidRequest  VoidRequest?
+  billSplits   BillSplit[]
+  talabatOrder TalabatOrder?
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([tenantId, status, createdAt])
+  @@index([tableId])
   @@map("orders")
 }
 
 model OrderItem {
-  id         String      @id @default(cuid())
-  quantity   Int
-  unitPrice  Float
-  totalPrice Float
-  notes      String?
-  orderId    String
-  menuItemId String
-  cost       Float       @default(0)
-  status     OrderStatus @default(PENDING)
-  menuItem   MenuItem    @relation(fields: [menuItemId], references: [id])
-  order      Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id             String              @id @default(cuid())
+  quantity       Int
+  unitPrice      Float
+  totalPrice     Float
+  notes          String?
+  orderId        String
+  menuItemId     String
+  cost           Float               @default(0)
+  status         OrderStatus         @default(PENDING)
+  prepStartedAt  DateTime?
+  menuItem       MenuItem            @relation(fields: [menuItemId], references: [id])
+  order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  modifiers      OrderItemModifier[]
+  billSplitItems BillSplitItem[]
+
+  @@index([orderId])
+  @@index([menuItemId])
 }
 
 model Bill {
@@ -171,64 +326,111 @@ model Bill {
   settledAt     DateTime?
   collectedById String?
   collectedBy   User?         @relation("BillCollector", fields: [collectedById], references: [id])
+  shiftId       String?
+  shift         CashierShift? @relation(fields: [shiftId], references: [id])
+  split         BillSplit?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model Delivery {
-  id               String    @id @default(cuid())
+  id               String                 @id @default(cuid())
   customerName     String
   customerPhone    String
   address          String
   deliveryFee      Float
   estimatedTime    Int?
-  status           String    @default("PENDING")
-  orderId          String    @unique
+  status           DeliveryStatus         @default(PENDING)
+  orderId          String                 @unique
   driverId         String?
   handedOverAt     DateTime?
-  isCashHandedOver Boolean   @default(false)
-  driver           User?     @relation(fields: [driverId], references: [id])
-  order            Order     @relation(fields: [orderId], references: [id])
+  isCashHandedOver Boolean                @default(false)
+  lat              Float?
+  lng              Float?
+  // Real-time tracking fields (Phase 6.6)
+  lastLat          Float?
+  lastLng          Float?
+  lastLocAt        DateTime?
+  driver           User?                  @relation(fields: [driverId], references: [id])
+  order            Order                  @relation(fields: [orderId], references: [id])
+  trackingToken    DeliveryTrackingToken?
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  description String
-  amount      Float
-  category    String
-  date        DateTime @default(now())
-  recordedBy  String
+  id           String   @id @default(cuid())
+  description  String
+  amount       Float
+  category     String
+  date         DateTime @default(now())
+  recordedById String?
+  recordedBy   User?    @relation("ExpenseRecorder", fields: [recordedById], references: [id])
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model DailyClose {
   id            String   @id @default(cuid())
-  date          DateTime @unique @default(now())
+  date          DateTime @default(now())
   totalSales    Float
   totalCash     Float
   totalCard     Float
+  totalCogs     Float    @default(0)
   totalExpenses Float
   netProfit     Float
-  closedBy      String
+  closedById    String?
+  closedBy      User?    @relation("DailyCloser", fields: [closedById], references: [id])
   notes         String?
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId, date, branchId])
+  @@index([tenantId])
+  @@index([branchId])
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  action    String
-  details   String?
-  createdAt DateTime @default(now())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
+  id          String   @id @default(cuid())
+  action      String
+  details     String?
+  createdAt   DateTime @default(now())
+  userId      String?
+  entityType  String?
+  entityId    String?
+  valueBefore String?
+  valueAfter  String?
+  ipAddress   String?
+  tenantId    String?
+  user        User?    @relation(fields: [userId], references: [id])
 }
 
 model SystemSetting {
-  id             String   @id @default(cuid())
-  restaurantName String   @default("My Restaurant")
-  currency       String   @default("USD")
-  taxRate        Float    @default(0)
-  serviceFee     Float    @default(0)
-  updatedAt      DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  tenantId           String   @unique
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  restaurantName     String   @default("My Restaurant")
+  currency           String   @default("USD")
+  taxRate            Float    @default(0)
+  serviceFee         Float    @default(0)
+  tableReviewMinutes Int      @default(25)
+  numberLocale       String   @default("ar-IQ")
+  updatedAt          DateTime @updatedAt
 }
 
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
   MANAGER
   WAITER
@@ -263,16 +465,692 @@ enum PaymentMethod {
   ONLINE
 }
 
-enum MenuType {
-  EASTERN
-  WESTERN
-  BEVERAGE
-  DESSERT
-}
-
 enum TransactionType {
   PURCHASE
   USAGE
   WASTE
   ADJUSTMENT
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum ManualPaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentMethodType {
+  BANK_TRANSFER
+  ZAIN_CASH
+  OTHER
+}
+
+enum AnnouncementType {
+  INFO
+  WARNING
+  UPDATE
+}
+
+model ManualPayment {
+  id           String              @id @default(cuid())
+  tenantId     String
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+  amount       Float
+  currency     String              @default("IQD")
+  method       PaymentMethodType
+  status       ManualPaymentStatus @default(PENDING)
+  receiptUrl   String?
+  receiptNote  String?
+  adminNote    String?
+  plan         PlanType
+  months       Int                 @default(1)
+  paidAt       DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?               @relation("PaymentApprover", fields: [approvedById], references: [id])
+  createdAt    DateTime            @default(now())
+
+  // Invoice fields (populated on approval)
+  invoiceNumber Int?      @unique
+  usdAmount     Float?
+  periodFrom    DateTime?
+  periodTo      DateTime?
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model PlatformSettings {
+  id                String   @id @default("singleton")
+  trialDurationDays Int      @default(14)
+  gracePeriodDays   Int      @default(3)
+  bankName          String   @default("")
+  bankAccount       String   @default("")
+  bankAccountName   String   @default("")
+  bankIban          String   @default("")
+  zainCashNumber    String   @default("")
+  supportPhone      String   @default("")
+  welcomeMessage    String   @default("")
+  maintenanceMode   Boolean  @default(false)
+  // Plan pricing (IQD per month)
+  pricingBasic      Int      @default(50000)
+  pricingPro        Int      @default(100000)
+  pricingEnterprise Int      @default(200000)
+  usdToIqdRate      Int      @default(1310)
+  updatedAt         DateTime @updatedAt
+}
+
+model Announcement {
+  id          String           @id @default(cuid())
+  title       String
+  body        String
+  type        AnnouncementType @default(INFO)
+  targetPlan  PlanType?
+  isActive    Boolean          @default(true)
+  createdById String?
+  createdBy   User?            @relation("AnnouncementCreator", fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+  expiresAt   DateTime?
+}
+
+enum ServiceMode {
+  QUICK_SERVICE
+  TABLE_SERVICE
+}
+
+model RestaurantConfig {
+  id          String      @id @default(cuid())
+  serviceMode ServiceMode @default(TABLE_SERVICE)
+}
+
+model Tenant {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  primaryColor String   @default("#f97316")
+  appName      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // نظام الخدمة — يضبطه السوبر أدمن لكل مطعم
+  serviceMode ServiceMode @default(TABLE_SERVICE)
+
+  // الحد اليومي للمساعد الذكي — 0 = غير محدود
+  aiDailyLimit Int @default(0)
+
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  plan                 PlanType  @default(BASIC)
+  subscriptionStatus   SubStatus @default(TRIAL)
+  trialEndsAt          DateTime?
+  currentPeriodEnd     DateTime?
+  multiBranchEnabled   Boolean   @default(false)
+  // Per-tenant feature overrides — superadmin can grant/revoke a module beyond
+  // the tenant's plan. Shape: { "delivery": true, "multiBranch": false, ... }.
+  featureOverrides     Json?
+
+  // نظام الولاء
+  loyaltyEnabled           Boolean @default(false)
+  loyaltyPointsPerThousand Int     @default(1) // نقاط لكل 1000 دينار
+  loyaltyPointValueIqd     Int     @default(100) // قيمة النقطة الواحدة بالدينار عند الاسترداد
+  loyaltyMinRedeemPoints   Int     @default(100) // الحد الأدنى للاسترداد
+
+  language           Language @default(AR)
+  googlePlaceId      String?
+  nightMenuStartTime String?
+  nightMenuEndTime   String?
+
+  users          User[]
+  categories     Category[]
+  menuItems      MenuItem[]
+  tables         Table[]
+  orders         Order[]
+  reservations   Reservation[]
+  rawMaterials   RawMaterial[]
+  suppliers      Supplier[]
+  customers      Customer[]
+  manualPayments ManualPayment[]
+  branches       Branch[]
+  bills          Bill[]
+  dailyCloses    DailyClose[]
+  expenses       Expense[]
+  offers         Offer[]
+
+  modifierGroups    ModifierGroup[]
+  cashierShifts     CashierShift[]
+  purchaseOrders    PurchaseOrder[]
+  inventoryBatches  InventoryBatch[]
+  kitchenStations   KitchenStation[]
+  seasonalMenus     SeasonalMenu[]
+  customerFeedbacks CustomerFeedback[]
+  talabatConfig     TalabatConfig[]
+  voidRequests      VoidRequest[]
+  supplierPayments  SupplierPayment[]
+  aiUsageLogs       AiUsageLog[]
+  systemSettings    SystemSetting?
+}
+
+model AiUsageLog {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  date     String // "YYYY-MM-DD"
+  count    Int    @default(1)
+
+  @@unique([tenantId, date])
+  @@index([tenantId])
+}
+
+enum PlanType {
+  TRIAL
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SubStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  PAUSED
+}
+
+// Per-plan feature/limit config — editable by the superadmin from the UI.
+// Falls back to the PLAN_LIMITS constant in code when a row is missing.
+model PlanConfig {
+  plan              PlanType @id
+  maxOrdersPerMonth Int?
+  maxMenuItems      Int?
+  maxStaffAccounts  Int?
+  modules           Json
+  updatedAt         DateTime @updatedAt
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  phone       String
+  name        String?
+  address     String?
+  totalPoints Int       @default(0)
+  totalSpent  Float     @default(0)
+  lastVisitAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders   Order[]
+
+  @@unique([tenantId, phone])
+}
+
+model Branch {
+  id           String      @id @default(cuid())
+  tenantId     String
+  name         String
+  address      String?
+  phone        String?
+  isActive     Boolean     @default(true)
+  serviceMode  ServiceMode @default(TABLE_SERVICE)
+  isMainBranch Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+
+  primaryColor String?
+  logoUrl      String?
+  appName      String?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  tables       Table[]
+  users        User[]
+  categories   Category[]
+  menuItems    MenuItem[]
+  offers       Offer[]
+  rawMaterials RawMaterial[]
+  expenses     Expense[]
+
+  cashierShifts     CashierShift[]
+  purchaseOrders    PurchaseOrder[]
+  inventoryBatches  InventoryBatch[]
+  kitchenStations   KitchenStation[]
+  seasonalMenus     SeasonalMenu[]
+  customerFeedbacks CustomerFeedback[]
+  talabatConfig     TalabatConfig[]
+  dailyCloses       DailyClose[]
+  reservations      Reservation[]
+  suppliers         Supplier[]
+
+  @@index([tenantId])
+}
+
+enum Language {
+  AR
+  KU
+  EN
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  PARTIALLY_RECEIVED
+  CANCELLED
+}
+
+enum POPaymentType {
+  CASH
+  DEFERRED
+}
+
+enum POPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+enum VoidRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ModifierGroup {
+  id         String  @id @default(cuid())
+  name       String
+  nameAr     String?
+  nameKu     String?
+  nameEn     String?
+  isRequired Boolean @default(false)
+  isVariant  Boolean @default(false)
+  minSelect  Int     @default(0)
+  maxSelect  Int     @default(1)
+  sortOrder  Int     @default(0)
+  tenantId   String
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  options ModifierOption[]
+  items   MenuItemModifierGroup[]
+
+  @@index([tenantId])
+}
+
+model ModifierOption {
+  id              String        @id @default(cuid())
+  name            String
+  nameAr          String?
+  nameKu          String?
+  nameEn          String?
+  priceAdjustment Float         @default(0)
+  isDefault       Boolean       @default(false)
+  sortOrder       Int           @default(0)
+  groupId         String
+  group           ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  rawMaterialId  String?
+  rawMaterialQty Float?
+  rawMaterial    RawMaterial? @relation(fields: [rawMaterialId], references: [id])
+
+  orderModifiers OrderItemModifier[]
+
+  @@index([groupId])
+}
+
+model MenuItemModifierGroup {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  modifierGroupId String
+  sortOrder       Int           @default(0)
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, modifierGroupId])
+}
+
+model OrderItemModifier {
+  id               String         @id @default(cuid())
+  orderItemId      String
+  modifierOptionId String
+  appliedPrice     Float
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
+
+  @@index([orderItemId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tokenHash])
+  @@index([userId])
+}
+
+model CashierShift {
+  id                 String    @id @default(cuid())
+  openedAt           DateTime  @default(now())
+  closedAt           DateTime?
+  openingCash        Float     @default(0)
+  closingCashEntered Float?
+  expectedCash       Float?
+  cashVariance       Float?
+  totalCash          Float     @default(0)
+  totalCard          Float     @default(0)
+  totalOnline        Float     @default(0)
+  totalSales         Float     @default(0)
+  note               String?
+  cashierId          String
+  cashier            User      @relation("ShiftCashier", fields: [cashierId], references: [id])
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id])
+  branchId           String?
+  branch             Branch?   @relation(fields: [branchId], references: [id])
+  bills              Bill[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([cashierId])
+}
+
+model BillSplit {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id])
+  splitIndex  Int
+  totalAmount Float
+  isPaid      Boolean @default(false)
+  billId      String? @unique
+  bill        Bill?   @relation(fields: [billId], references: [id])
+
+  items BillSplitItem[]
+
+  @@index([orderId])
+}
+
+model BillSplitItem {
+  id          String    @id @default(cuid())
+  splitId     String
+  split       BillSplit @relation(fields: [splitId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+}
+
+model PurchaseOrder {
+  id            String              @id @default(cuid())
+  poNumber      String
+  status        PurchaseOrderStatus @default(DRAFT)
+  supplierId    String
+  supplier      Supplier            @relation(fields: [supplierId], references: [id])
+  expectedDate  DateTime?
+  receivedDate  DateTime?
+  totalCost     Float               @default(0)
+  notes         String?
+  createdById   String?
+  createdBy     User?               @relation("POCreator", fields: [createdById], references: [id])
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  branchId      String?
+  branch        Branch?             @relation(fields: [branchId], references: [id])
+  createdAt     DateTime            @default(now())
+
+  // نظام الدفع الآجل
+  paymentType   POPaymentType   @default(CASH)
+  dueDate       DateTime?
+  paymentStatus POPaymentStatus @default(UNPAID)
+  paidAmount    Float           @default(0)
+
+  items    PurchaseOrderItem[]
+  payments SupplierPayment[]
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId])
+  @@index([branchId])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  materialId      String
+  material        RawMaterial   @relation(fields: [materialId], references: [id])
+  orderedQty      Float
+  receivedQty     Float         @default(0)
+  unitCost        Float
+
+  batches InventoryBatch[]
+}
+
+model InventoryBatch {
+  id           String             @id @default(cuid())
+  materialId   String
+  material     RawMaterial        @relation(fields: [materialId], references: [id])
+  poItemId     String?
+  poItem       PurchaseOrderItem? @relation(fields: [poItemId], references: [id])
+  receivedQty  Float
+  remainingQty Float
+  unitCost     Float
+  expiryDate   DateTime?
+  receivedAt   DateTime           @default(now())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  branchId     String?
+  branch       Branch?            @relation(fields: [branchId], references: [id])
+
+  @@index([materialId])
+  @@index([tenantId])
+  @@index([expiryDate])
+}
+
+model DeliveryTrackingToken {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  deliveryId String   @unique
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([tokenHash])
+}
+
+model TalabatConfig {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  storeId       String
+  apiKey        String
+  webhookSecret String
+  isEnabled     Boolean   @default(false)
+  lastSyncAt    DateTime?
+  branchId      String?
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  itemMapping   String    @default("{}")
+
+  @@index([tenantId])
+}
+
+model TalabatOrder {
+  id             String   @id @default(cuid())
+  talabatOrderId String   @unique
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id])
+  rawPayload     String
+  createdAt      DateTime @default(now())
+
+  @@index([talabatOrderId])
+}
+
+model KitchenStation {
+  id        String  @id @default(cuid())
+  name      String
+  nameAr    String?
+  nameKu    String?
+  colour    String  @default("#6366f1")
+  sortOrder Int     @default(0)
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId  String?
+  branch    Branch? @relation(fields: [branchId], references: [id])
+
+  menuItems MenuItemStation[]
+  categories Category[]
+
+  @@index([tenantId])
+}
+
+model MenuItemStation {
+  id         String         @id @default(cuid())
+  menuItemId String
+  stationId  String
+  menuItem   MenuItem       @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  station    KitchenStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, stationId])
+}
+
+model SeasonalMenu {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  createdAt DateTime @default(now())
+
+  categories SeasonalMenuCategory[]
+  items      SeasonalMenuItem[]
+  hours      SeasonalHours[]
+
+  @@index([tenantId])
+}
+
+model SeasonalMenuCategory {
+  id             String       @id @default(cuid())
+  seasonalMenuId String
+  seasonalMenu   SeasonalMenu @relation(fields: [seasonalMenuId], references: [id], onDelete: Cascade)
+  categoryId     String
+  category       Category     @relation(fields: [categoryId], references: [id])
+
+  @@unique([seasonalMenuId, categoryId])
+}
+
+model SeasonalMenuItem {
+  id             String       @id @default(cuid())
+  seasonalMenuId String
+  seasonalMenu   SeasonalMenu @relation(fields: [seasonalMenuId], references: [id], onDelete: Cascade)
+  menuItemId     String
+  menuItem       MenuItem     @relation(fields: [menuItemId], references: [id])
+
+  @@unique([seasonalMenuId, menuItemId])
+}
+
+model SeasonalHours {
+  id             String       @id @default(cuid())
+  seasonalMenuId String
+  seasonalMenu   SeasonalMenu @relation(fields: [seasonalMenuId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int?
+  openTime       String
+  closeTime      String
+}
+
+model CustomerFeedback {
+  id         String    @id @default(cuid())
+  orderId    String    @unique
+  order      Order     @relation(fields: [orderId], references: [id])
+  rating     Int
+  comment    String?
+  staffReply String?
+  repliedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  branchId   String?
+  branch     Branch?   @relation(fields: [branchId], references: [id])
+
+  @@index([tenantId])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+// Cross-instance rate-limit buckets for PUBLIC endpoints (QR ordering, customer
+// registration, feedback). In-memory counters do NOT hold on multi-instance
+// serverless (Vercel) — this table is the shared store. One row per
+// (endpoint:dimension:value) key; the counter resets atomically when the window
+// expires. Not tenant-scoped (the key may be an unauthenticated session/IP).
+// See PRELAUNCH-AUDIT.md → section ب-3.
+model RateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+model VoidRequest {
+  id            String            @id @default(cuid())
+  orderId       String            @unique
+  order         Order             @relation(fields: [orderId], references: [id])
+  requestedById String
+  requestedBy   User              @relation("VoidRequester", fields: [requestedById], references: [id])
+  approvedById  String?
+  approvedBy    User?             @relation("VoidApprover", fields: [approvedById], references: [id])
+  status        VoidRequestStatus @default(PENDING)
+  reason        String?
+  createdAt     DateTime          @default(now())
+  resolvedAt    DateTime?
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model SupplierPayment {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  supplierId      String
+  supplier        Supplier      @relation(fields: [supplierId], references: [id])
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  amount          Float
+  paidAt          DateTime      @default(now())
+  notes           String?
+
+  @@index([tenantId])
+  @@index([purchaseOrderId])
+  @@index([supplierId])
 }

@@ -4,9 +4,15 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { CategoryForm } from '@/components/menu/category-form';
+import { Branch } from '@prisma/client';
 import { ListFilter } from 'lucide-react';
 
-export function AddCategoryDialog() {
+interface AddCategoryDialogProps {
+    branches?: Branch[];
+    defaultBranchId?: string | null;
+}
+
+export function AddCategoryDialog({ branches, defaultBranchId }: AddCategoryDialogProps = {}) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -20,7 +26,7 @@ export function AddCategoryDialog() {
                 <DialogHeader>
                     <DialogTitle>قسم جديد</DialogTitle>
                 </DialogHeader>
-                <CategoryForm onSuccess={() => setOpen(false)} />
+                <CategoryForm onSuccess={() => setOpen(false)} branches={branches} defaultBranchId={defaultBranchId} />
             </DialogContent>
         </Dialog>
     );

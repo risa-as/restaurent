@@ -1,6 +1,10 @@
 import { getSettledDeliveryBills } from '@/lib/actions/accountant';
 import { SettlementHistoryTable } from '@/components/accountant/settlement-history-table';
 
+export const metadata = {
+    title: 'سجل تسويات التوصيل',
+};
+
 export default async function DeliveryHistoryPage() {
     const bills = await getSettledDeliveryBills();
 

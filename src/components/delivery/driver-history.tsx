@@ -36,8 +36,8 @@ export function DriverHistory({ deliveries, drivers }: DriverHistoryProps) {
     return (
         <div className="space-y-6">
             {/* Filter */}
-            <div className="bg-white p-4 rounded-xl border shadow-sm flex items-center gap-4">
-                <Search className="text-gray-400 w-5 h-5" />
+            <div className="bg-card p-4 rounded-xl border shadow-sm flex items-center gap-4">
+                <Search className="text-muted-foreground w-5 h-5" />
                 <span className="text-sm font-medium">اختر السائق:</span>
                 <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
                     <SelectTrigger className="w-[200px]" dir="rtl">
@@ -129,9 +129,9 @@ export function DriverHistory({ deliveries, drivers }: DriverHistoryProps) {
                                             <TableCell>{delivery.order.totalAmount.toFixed(0)}</TableCell>
                                             <TableCell>
                                                 {delivery.isCashHandedOver ? (
-                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">مدفوع</Badge>
+                                                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30">مدفوع</Badge>
                                                 ) : (
-                                                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">غير مدفوع</Badge>
+                                                    <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30">غير مدفوع</Badge>
                                                 )}
                                             </TableCell>
                                         </TableRow>

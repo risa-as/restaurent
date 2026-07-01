@@ -2,18 +2,17 @@
 
 import { Category, MenuItem, Table, Offer } from '@prisma/client';
 import { useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, ShoppingBag, Truck, Utensils } from 'lucide-react';
+import { Search, ShoppingBag, Truck, Utensils, MapPin, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ModifierPickerModal, type SelectedModifier } from '@/components/menu/modifier-picker-modal';
 
 interface POSMenuItem extends MenuItem {
     offers: Offer[];
+    _count: { modifierGroups: number };
 }
 
 export type OrderType = 'dine_in' | 'takeaway' | 'delivery';
@@ -28,10 +27,27 @@ interface CashierMenuProps {
     setCustomerPhone: (phone: string) => void;
     customerAddress: string;
     setCustomerAddress: (address: string) => void;
+    customerLat?: number;
+    setCustomerLat: (lat: number) => void;
+    customerLng?: number;
+    setCustomerLng: (lng: number) => void;
     selectedTable: string;
     setSelectedTable: (tableId: string) => void;
-    onAddToCart: (item: POSMenuItem) => void;
+    onAddToCart: (item: POSMenuItem, modifiers?: SelectedModifier[]) => void;
 }
+
+const ORDER_TYPES = [
+    { value: 'takeaway', label: 'سفري', icon: ShoppingBag, color: 'text-orange-500' },
+    { value: 'dine_in',  label: 'صالة',  icon: Utensils,   color: 'text-blue-500' },
+    { value: 'delivery', label: 'توصيل', icon: Truck,       color: 'text-green-500' },
+] as const;
+
+const TABLE_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+    AVAILABLE: { color: 'bg-green-500',  label: 'متاح'    },
+    OCCUPIED:  { color: 'bg-red-500',    label: 'مشغول'   },
+    RESERVED:  { color: 'bg-yellow-500', label: 'محجوز'   },
+    DIRTY:     { color: 'bg-orange-500', label: 'تنظيف'   },
+};
 
 export function CashierMenu({
     categories,
@@ -45,79 +61,81 @@ export function CashierMenu({
     setCustomerAddress,
     selectedTable,
     setSelectedTable,
-    onAddToCart
+    onAddToCart,
 }: CashierMenuProps) {
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeCategory, setActiveCategory] = useState<string>("all");
+    const [activeCategory, setActiveCategory] = useState<string>('all');
+    const [pendingItem, setPendingItem] = useState<POSMenuItem | null>(null);
+
+    function handleItemTap(item: POSMenuItem) {
+        if ((item._count?.modifierGroups ?? 0) === 0) {
+            onAddToCart(item, []);
+            return;
+        }
+        setPendingItem(item);
+    }
+
+    function handleModifierConfirm(modifiers: SelectedModifier[]) {
+        if (pendingItem) {
+            onAddToCart(pendingItem, modifiers);
+            setPendingItem(null);
+        }
+    }
 
     const filteredItems = useMemo(() => {
         let items = menuItems;
-        if (activeCategory !== "all") {
-            items = items.filter(i => i.categoryId === activeCategory);
-        }
-        if (searchQuery) {
-            items = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
-        }
+        if (activeCategory !== 'all') items = items.filter(i => i.categoryId === activeCategory);
+        if (searchQuery) items = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
         return items;
     }, [menuItems, activeCategory, searchQuery]);
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 border-r">
-            {/* Header: Order Type & Search */}
-            <div className="p-3 bg-white border-b shadow-sm space-y-3">
-                <div className="flex gap-2">
-                    <Button
-                        variant={orderType === 'takeaway' ? 'default' : 'outline'}
-                        className={cn("flex-1 gap-2", orderType === 'takeaway' && "bg-blue-600 hover:bg-blue-700")}
-                        onClick={() => setOrderType('takeaway')}
-                    >
-                        <ShoppingBag className="w-4 h-4" /> سفري
-                    </Button>
-                    <Button
-                        variant={orderType === 'dine_in' ? 'default' : 'outline'}
-                        className={cn("flex-1 gap-2", orderType === 'dine_in' && "bg-orange-600 hover:bg-orange-700")}
-                        onClick={() => setOrderType('dine_in')}
-                    >
-                        <Utensils className="w-4 h-4" /> صالة
-                    </Button>
-                    <Button
-                        variant={orderType === 'delivery' ? 'default' : 'outline'}
-                        className={cn("flex-1 gap-2", orderType === 'delivery' && "bg-green-600 hover:bg-green-700")}
-                        onClick={() => setOrderType('delivery')}
-                    >
-                        <Truck className="w-4 h-4" /> توصيل
-                    </Button>
+        <>
+        {pendingItem && (
+            <ModifierPickerModal
+                open={!!pendingItem}
+                menuItemId={pendingItem.id}
+                menuItemName={pendingItem.name}
+                onConfirm={handleModifierConfirm}
+                onCancel={() => setPendingItem(null)}
+            />
+        )}
+        <div className="flex flex-col h-full">
+            {/* ── Order Type Selector ── */}
+            <div className="shrink-0 p-3 border-b space-y-3 bg-card">
+                <div className="grid grid-cols-3 gap-2">
+                    {ORDER_TYPES.map(({ value, label, icon: Icon, color }) => (
+                        <button
+                            key={value}
+                            onClick={() => setOrderType(value)}
+                            className={cn(
+                                'flex flex-col items-center gap-1.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all',
+                                orderType === value
+                                    ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                                    : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/40 hover:bg-muted/60'
+                            )}
+                        >
+                            <Icon className={cn('w-4 h-4', orderType === value ? 'text-primary' : color)} />
+                            {label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Context Inputs based on Type */}
+                {/* Dine-in: table selector */}
                 {orderType === 'dine_in' && (
-                    <Select value={selectedTable} onValueChange={(value) => {
-                        const table = tables.find(t => t.id === value);
-                        if (table?.status === 'OCCUPIED') {
-                            // Optional: Toast warning?
-                        }
-                        setSelectedTable(value);
-                    }}>
-                        <SelectTrigger>
+                    <Select value={selectedTable} onValueChange={setSelectedTable}>
+                        <SelectTrigger className="bg-background">
                             <SelectValue placeholder="اختر الطاولة" />
                         </SelectTrigger>
                         <SelectContent dir="rtl">
                             {tables.map(t => {
-                                let statusColor = 'bg-gray-500';
-                                switch (t.status) {
-                                    case 'AVAILABLE': statusColor = 'bg-green-500'; break;
-                                    case 'OCCUPIED': statusColor = 'bg-red-500'; break;
-                                    case 'RESERVED': statusColor = 'bg-yellow-500'; break;
-                                    case 'DIRTY': statusColor = 'bg-orange-500'; break;
-                                }
+                                const cfg = TABLE_STATUS_CONFIG[t.status] || { color: 'bg-gray-500', label: t.status };
                                 return (
                                     <SelectItem key={t.id} value={t.id}>
                                         <div className="flex items-center gap-2">
-                                            <span className={`w-2 h-2 rounded-full ${statusColor}`} />
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.color}`} />
                                             <span>طاولة {t.number}</span>
-                                            <span className="text-xs text-muted-foreground mr-1">
-                                                ({t.status === 'AVAILABLE' ? 'متاح' : t.status === 'OCCUPIED' ? 'مشغول' : t.status === 'RESERVED' ? 'محجوز' : 'تنظيف'})
-                                            </span>
+                                            <span className="text-xs text-muted-foreground">({cfg.label})</span>
                                         </div>
                                     </SelectItem>
                                 );
@@ -125,68 +143,146 @@ export function CashierMenu({
                         </SelectContent>
                     </Select>
                 )}
+
+                {/* Delivery: phone + address (no map) */}
                 {orderType === 'delivery' && (
-                    <div className="flex flex-col gap-2">
-                        <Input placeholder="رقم الهاتف" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="bg-muted/20 w-full" />
-                        <Input placeholder="العنوان" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} className="bg-muted/20 w-full" />
+                    <div className="space-y-2">
+                        <div className="relative">
+                            <Phone className="absolute right-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+                            <Input
+                                placeholder="رقم الهاتف"
+                                value={customerPhone}
+                                onChange={e => setCustomerPhone(e.target.value)}
+                                className="pr-8"
+                                dir="ltr"
+                            />
+                        </div>
+                        <div className="relative">
+                            <MapPin className="absolute right-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+                            <Input
+                                placeholder="العنوان التفصيلي"
+                                value={customerAddress}
+                                onChange={e => setCustomerAddress(e.target.value)}
+                                className="pr-8"
+                            />
+                        </div>
                     </div>
                 )}
 
+                {/* Search */}
                 <div className="relative">
                     <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="بحث في القائمة..."
                         className="pr-8"
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={e => setSearchQuery(e.target.value)}
                     />
                 </div>
             </div>
 
-            {/* Categories */}
-            <div className="bg-white border-b px-2 py-2">
-                <Tabs defaultValue="all" value={activeCategory} onValueChange={setActiveCategory}>
-                    <TabsList className="w-full justify-start overflow-x-auto flex-nowrap pb-1 h-auto bg-transparent p-0 gap-2">
-                        <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-muted/30">الكل</TabsTrigger>
-                        {categories.map(c => (
-                            <TabsTrigger key={c.id} value={c.id} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-muted/30">{c.name}</TabsTrigger>
-                        ))}
-                    </TabsList>
-                </Tabs>
+            {/* ── Category Tabs ── */}
+            <div className="shrink-0 border-b bg-card px-3 py-2">
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    <button
+                        onClick={() => setActiveCategory('all')}
+                        className={cn(
+                            'shrink-0 px-3 py-1 rounded-full text-xs font-bold border transition-all',
+                            activeCategory === 'all'
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/40'
+                        )}
+                    >
+                        الكل
+                    </button>
+                    {categories.map(c => (
+                        <button
+                            key={c.id}
+                            onClick={() => setActiveCategory(c.id)}
+                            className={cn(
+                                'shrink-0 px-3 py-1 rounded-full text-xs font-bold border transition-all',
+                                activeCategory === c.id
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/40'
+                            )}
+                        >
+                            {c.name}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* Menu Items Grid */}
-            <ScrollArea className="flex-1 p-3">
-                <div className="grid grid-cols-2 gap-3 pb-8">
-                    {filteredItems.map(item => {
-                        const hasOffer = item.offers.length > 0;
-                        return (
-                            <Card
-                                key={item.id}
-                                className={cn(
-                                    "cursor-pointer hover:border-primary transition-all active:scale-95 shadow-sm border-gray-200",
-                                    !item.isAvailable && "opacity-50 pointer-events-none"
-                                )}
-                                onClick={() => onAddToCart(item)}
-                            >
-                                <CardContent className="p-3 text-center flex flex-col gap-2">
-                                    <div className="h-20 w-full bg-gray-100 rounded flex items-center justify-center text-xs relative overflow-hidden">
+            {/* ── Menu Grid ── */}
+            <ScrollArea className="flex-1">
+                {filteredItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+                        <Search className="w-8 h-8 opacity-20" />
+                        <p className="text-sm">لا توجد أصناف</p>
+                    </div>
+                ) : (
+                    <div className="grid gap-2.5 p-3 pb-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}>
+                        {filteredItems.map(item => {
+                            const activeOffer = item.offers.length > 0
+                                ? item.offers.reduce((prev, curr) => curr.discountPct > prev.discountPct ? curr : prev)
+                                : null;
+                            const finalPrice = activeOffer
+                                ? item.price * (1 - activeOffer.discountPct / 100)
+                                : item.price;
+
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => item.isAvailable && handleItemTap(item)}
+                                    disabled={!item.isAvailable}
+                                    className={cn(
+                                        'flex flex-col rounded-xl border-2 overflow-hidden text-right transition-all duration-150',
+                                        'hover:border-primary hover:shadow-md active:scale-95',
+                                        'border-border bg-card',
+                                        !item.isAvailable && 'opacity-40 cursor-not-allowed'
+                                    )}
+                                >
+                                    {/* Image */}
+                                    <div className="relative w-full h-20 bg-muted overflow-hidden">
                                         {item.image ? (
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                         ) : (
-                                            <span className="text-gray-400">صورة</span>
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Utensils className="w-6 h-6 text-muted-foreground/30" />
+                                            </div>
                                         )}
-                                        {hasOffer && <Badge className="absolute top-1 right-1 px-1 h-5 text-[10px]" variant="destructive">%</Badge>}
+                                        {activeOffer && (
+                                            <Badge
+                                                variant="destructive"
+                                                className="absolute top-1 left-1 text-[10px] px-1.5 h-4 font-black"
+                                            >
+                                                -{activeOffer.discountPct}%
+                                            </Badge>
+                                        )}
+                                        {!item.isAvailable && (
+                                            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                                                <span className="text-xs font-bold text-muted-foreground">غير متاح</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="text-sm font-medium line-clamp-1">{item.name}</div>
-                                    <div className="text-sm font-bold text-primary">{item.price.toFixed(0)}</div>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-                </div>
+                                    {/* Info */}
+                                    <div className="p-2 flex flex-col gap-0.5">
+                                        <span className="text-xs font-semibold line-clamp-1 leading-tight">{item.name}</span>
+                                        <div className="flex items-baseline gap-1.5">
+                                            <span className="text-sm font-black text-primary">{finalPrice.toFixed(0)}</span>
+                                            {activeOffer && (
+                                                <span className="text-[10px] text-muted-foreground line-through">{item.price.toFixed(0)}</span>
+                                            )}
+                                            <span className="text-[10px] text-muted-foreground">د.ع</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </ScrollArea>
         </div>
+        </>
     );
 }

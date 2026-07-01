@@ -97,7 +97,6 @@ async function main() {
             const created = await prisma.category.create({
                 data: {
                     name: cat.name,
-                    type: cat.type,
                 },
             });
             categoryMap.set(cat.type, created);

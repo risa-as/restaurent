@@ -1,22 +1,31 @@
+import { getRawMaterials } from '@/lib/actions/inventory';
+import { getExpiringBatches } from '@/lib/actions/purchase-orders';
 import { InventoryDashboard } from '@/components/inventory/inventory-dashboard';
-import { prisma } from '@/lib/prisma';
+import { BatchExpiryList } from '@/components/inventory/batch-expiry-list';
+
+export const metadata = {
+    title: 'المخزون',
+};
+
+export const dynamic = 'force-dynamic';
 
 export default async function InventoryPage() {
-    const totalItems = await prisma.rawMaterial.count();
-    // Doing simpler query:
-    const allMaterials = await prisma.rawMaterial.findMany();
-
-    // Calculate stats in memory for now to avoid advanced Prisma queries without testing
-    const lowStock = allMaterials.filter(m => m.currentStock <= m.minStockLevel && m.currentStock > 0).length;
-    const outOfStock = allMaterials.filter(m => m.currentStock <= 0).length;
-    const totalValue = allMaterials.reduce((acc, curr) => acc + (curr.currentStock * curr.costPerUnit), 0);
+    const [materials, expiringBatches] = await Promise.all([
+        getRawMaterials(),
+        getExpiringBatches(7),
+    ]);
 
     const stats = {
-        totalItems,
-        lowStockItems: lowStock,
-        outOfStockItems: outOfStock,
-        totalValue
+        totalItems: materials.length,
+        lowStockItems: materials.filter(m => m.currentStock <= m.minStockLevel && m.currentStock > 0).length,
+        outOfStockItems: materials.filter(m => m.currentStock <= 0).length,
+        totalValue: materials.reduce((acc, m) => acc + (m.currentStock * m.costPerUnit), 0),
     };
 
-    return <InventoryDashboard stats={stats} />;
+    return (
+        <div className="space-y-4 p-4">
+            {expiringBatches.length > 0 && <BatchExpiryList batches={expiringBatches} />}
+            <InventoryDashboard stats={stats} />
+        </div>
+    );
 }

@@ -4,143 +4,261 @@ import { Category, MenuItem, Table, Offer, Order, OrderItem, Delivery, User, Bil
 import { ReadyOrdersList } from './ready-orders-list';
 import { CashierMenu, OrderType } from './cashier-menu';
 import { CashierCart, CartItem } from './cashier-cart';
-import { useState, useTransition, useEffect, useRef } from 'react';
+import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import { createOrder } from '@/lib/actions/pos';
 import { getOrderForReceipt } from '@/lib/actions/cashier';
+import { enqueueOrder, drainQueue } from '@/lib/offline-queue';
+import { saveLiveOrder, type LiveOrder } from '@/lib/offline/db';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutDashboard, History } from 'lucide-react';
+import { LayoutDashboard, History, ClipboardCheck, QrCode } from 'lucide-react';
 import { CashierHistory } from './cashier-history';
+import { PendingBillsView } from './pending-bills-view';
 import { Receipt } from '@/components/orders/receipt';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Printer, CheckCircle } from 'lucide-react';
-
-// ... (keep POSMenuItem and OrderWithDetails types)
-// Better to export OrderWithDetails from a central place or redefine it to match getOrderForReceipt result?
-// getOrderForReceipt includes bills.
-// I should update OrderWithDetails type here or genericise.
-// For printing, I'll just use 'any' or intersection if lazy, but better to add Bill.
+import { getPusherClient } from '@/lib/pusher';
+import { useRouter } from 'next/navigation';
 
 type OrderWithDetails = Order & {
     items: (OrderItem & { menuItem: MenuItem })[];
     table: Table | null;
     delivery: (Delivery & { driver: User | null }) | null;
-    bills?: Bill[]; // Added optional bills
+    bills?: Bill[];
 };
 
 interface POSMenuItem extends MenuItem {
     offers: Offer[];
+    _count: { modifierGroups: number };
 }
 
 interface CashierViewProps {
     initialOrders: OrderWithDetails[];
-    historyOrders: OrderWithDetails[];
     categories: Category[];
     menuItems: POSMenuItem[];
     tables: Table[];
+    serviceMode: string;
+    shiftId?: string;
+    qrPendingBills?: any[];
+    activeTableOrders?: any[];
+    tenantId?: string;
+    loyaltyEnabled?: boolean;
+    onRefresh?: () => void | Promise<void>;
 }
 
-export function CashierView({ initialOrders, historyOrders, categories, menuItems, tables }: CashierViewProps) {
-    // Lifted State
+export function CashierView({ initialOrders, categories, menuItems, tables, serviceMode, shiftId, qrPendingBills: initialQrBills, activeTableOrders = [], tenantId, loyaltyEnabled = false, onRefresh }: CashierViewProps) {
+    const router = useRouter();
+
+    // Prefer the CSR background refetch; fall back to router.refresh() (SSR).
+    // Held in a ref so the Pusher effect never re-subscribes on re-render.
+    const refresh = useCallback(
+        () => (onRefresh ? onRefresh() : router.refresh()),
+        [onRefresh, router],
+    );
+    const refreshRef = useRef(refresh);
+    refreshRef.current = refresh;
+    const [qrBills, setQrBills] = useState<any[]>(initialQrBills ?? []);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [orderType, setOrderType] = useState<OrderType>('takeaway');
-    const [selectedTable, setSelectedTable] = useState<string>("");
-    const [customerPhone, setCustomerPhone] = useState("");
-    const [customerAddress, setCustomerAddress] = useState("");
+    const [selectedTable, setSelectedTable] = useState<string>('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerAddress, setCustomerAddress] = useState('');
+    const [customerLat, setCustomerLat] = useState<number | undefined>();
+    const [customerLng, setCustomerLng] = useState<number | undefined>();
     const [, startTransition] = useTransition();
     const { toast } = useToast();
 
-    // Printing State
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [printingOrder, setPrintingOrder] = useState<any | null>(null); // Using any to avoid strict type mismatch with Receipt props if complex
-    const printRef = useRef<boolean>(false);
-    const [orderSuccess, setOrderSuccess] = useState<string | null>(null); // Store Order ID
+    // Drain offline queue when component mounts and when coming back online
+    const drainOfflineQueue = useCallback(async () => {
+        await drainQueue(async (payload) => {
+            await createOrder(payload as Parameters<typeof createOrder>[0]);
+        });
+    }, []);
 
-    // Effect to trigger print when printingOrder is set
+    useEffect(() => {
+        // Drain on mount (in case app was reloaded while online)
+        if (navigator.onLine) drainOfflineQueue();
+        const handleOnline = () => drainOfflineQueue();
+        window.addEventListener('online', handleOnline);
+        return () => window.removeEventListener('online', handleOnline);
+    }, [drainOfflineQueue]);
+
+    // مزامنة فواتير QR عند تحديث الخادم
+    useEffect(() => { setQrBills(initialQrBills ?? []); }, [initialQrBills]);
+
+    // إشعار فوري عند طلب فاتورة QR جديدة
+    useEffect(() => {
+        if (!tenantId) return;
+        const pusher = getPusherClient();
+        if (!pusher) return;
+        const channel = pusher.subscribe(`tenant-${tenantId}-cashier`);
+        channel.bind('qr-bill-requested', () => refreshRef.current());
+        channel.bind('bill-settled', () => refreshRef.current());
+        channel.bind('table-status-changed', () => refreshRef.current());
+        return () => {
+            channel.unbind('qr-bill-requested');
+            channel.unbind('bill-settled');
+            channel.unbind('table-status-changed');
+            pusher.unsubscribe(`tenant-${tenantId}-cashier`);
+        };
+    }, [tenantId]);
+
+    const [printingOrder, setPrintingOrder] = useState<any | null>(null);
+    const printRef = useRef<boolean>(false);
+    const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+
     useEffect(() => {
         if (printingOrder && printRef.current) {
-            // Small delay to ensure render
             setTimeout(() => {
                 window.print();
                 printRef.current = false;
-                setPrintingOrder(null); // Clear after print dialog opens
+                setPrintingOrder(null);
             }, 500);
         }
     }, [printingOrder]);
 
-    // Handlers
-    const addToCart = (item: POSMenuItem) => {
+    const addToCart = (item: POSMenuItem, modifiers?: import('@/components/menu/modifier-picker-modal').SelectedModifier[]) => {
+        const cartKey = item.id + (modifiers && modifiers.length > 0 ? ':' + modifiers.map(m => m.modifierOptionId).sort().join(',') : '');
         setCart(prev => {
-            const existing = prev.find(i => i.menuItem.id === item.id);
-            if (existing) {
-                return prev.map(i => i.menuItem.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-            }
-            return [...prev, { menuItem: item, quantity: 1 }];
+            const existing = prev.find(i => i.cartKey === cartKey);
+            if (existing) return prev.map(i => i.cartKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i);
+            return [...prev, { menuItem: item, quantity: 1, modifiers, cartKey }];
         });
     };
 
-    const updateQuantity = (id: string, delta: number) => {
+    const updateQuantity = (cartKey: string, delta: number) => {
         setCart(prev => prev.map(i => {
-            if (i.menuItem.id === id) {
+            if (i.cartKey === cartKey) {
                 const newQty = i.quantity + delta;
                 return newQty > 0 ? { ...i, quantity: newQty } : i;
             }
             return i;
-        }));
+        }).filter(i => i.quantity > 0));
     };
 
-    const removeFromCart = (id: string) => {
-        setCart(prev => prev.filter(i => i.menuItem.id !== id));
-    };
+    const removeFromCart = (cartKey: string) => setCart(prev => prev.filter(i => i.cartKey !== cartKey));
 
     const clearCart = () => {
         setCart([]);
-        setCustomerPhone("");
-        setCustomerAddress("");
-        setSelectedTable("");
-        // Keep orderType
+        setCustomerPhone('');
+        setCustomerAddress('');
+        setSelectedTable('');
     };
 
-    const handleCreateOrder = async () => {
+    const handleCreateOrder = async (pointsToRedeem?: number, paymentMethod?: 'CASH' | 'CARD') => {
         if (cart.length === 0) return;
         if (orderType === 'dine_in' && !selectedTable) {
-            toast({ variant: "destructive", title: "تنبيه", description: "يرجى اختيار طاولة" });
+            toast({ variant: 'destructive', title: 'تنبيه', description: 'يرجى اختيار طاولة' });
             return;
         }
 
-        startTransition(async () => {
-            const res = await createOrder({
-                tableId: orderType === 'dine_in' ? selectedTable : undefined,
-                deliveryType: orderType === 'delivery' ? 'delivery' : (orderType === 'takeaway' ? 'pickup' : undefined),
-                items: cart.map(i => ({ menuItemId: i.menuItem.id, quantity: i.quantity, notes: i.notes })),
-                customerPhone,
-                customerAddress,
-                note: `نظام الكاشير - ${orderType}`
+        const orderPayload = {
+            tableId: orderType === 'dine_in' ? selectedTable : undefined,
+            deliveryType: (orderType === 'delivery' ? 'delivery' : (orderType === 'takeaway' ? 'pickup' : undefined)) as 'delivery' | 'pickup' | undefined,
+            items: cart.map(i => ({
+                menuItemId: i.menuItem.id,
+                quantity: i.quantity,
+                notes: i.notes,
+                modifiers: i.modifiers?.map(m => ({ modifierOptionId: m.modifierOptionId })),
+            })),
+            customerPhone,
+            customerAddress,
+            customerLat,
+            customerLng,
+            note: `نظام الكاشير - ${orderType}`,
+            pointsRedeemed: pointsToRedeem || 0,
+            serviceMode: serviceMode as any,
+            paymentMethod: paymentMethod ?? 'CASH',
+            // Needed by the offline queue / sync endpoint to scope the order.
+            tenantId: tenantId ?? '',
+        };
+
+        // Build a full local order so it shows up in the kitchen/waiter pages on
+        // the same device while offline (single-device live flow).
+        const buildLiveOrder = (localId: string): LiveOrder => {
+            const tableObj = orderType === 'dine_in' ? tables.find(t => t.id === selectedTable) : null;
+            const liveItems = cart.map((c, idx) => {
+                const cat = categories.find(cc => cc.id === c.menuItem.categoryId);
+                const modTotal = (c.modifiers ?? []).reduce((s, m) => s + (m.priceAdjustment || 0), 0);
+                const unit = c.menuItem.price + modTotal;
+                return {
+                    id: `${localId}_i${idx}`,
+                    quantity: c.quantity,
+                    status: 'PENDING',
+                    notes: c.notes ?? null,
+                    unitPrice: unit,
+                    totalPrice: unit * c.quantity,
+                    menuItem: {
+                        id: c.menuItem.id,
+                        name: c.menuItem.name,
+                        nameAr: (c.menuItem as any).nameAr ?? null,
+                        category: { id: cat?.id ?? '', name: cat?.name ?? 'أخرى' },
+                    },
+                    modifiers: (c.modifiers ?? []).map((m, mi) => ({
+                        id: `${localId}_i${idx}_m${mi}`,
+                        modifierOption: { name: m.name, nameAr: (m as any).nameAr ?? m.name },
+                    })),
+                };
             });
+            return {
+                id: localId,
+                orderNumber: Math.floor(Date.now() / 1000) % 100000,
+                tenantId: tenantId ?? '',
+                tableId: orderType === 'dine_in' ? selectedTable : null,
+                table: tableObj ? { number: tableObj.number } : null,
+                status: 'PENDING',
+                note: `نظام الكاشير - ${orderType}`,
+                totalAmount: liveItems.reduce((s, i) => s + i.totalPrice, 0),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                items: liveItems,
+                _local: true,
+            };
+        };
 
-            if (res?.error) {
-                toast({ variant: "destructive", title: "خطأ", description: res.error });
-            } else {
-                toast({ title: "تم بنجاح", description: "تم إنشاء الطلب" });
+        const queueOffline = async () => {
+            // Save the visible local order BEFORE clearing the cart. localOrderId
+            // ties the queued sync action to the live order so its final offline
+            // status (ready/served) is carried to the cloud on sync.
+            const isKitchen = orderType !== 'delivery';
+            const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            if (isKitchen) await saveLiveOrder(buildLiveOrder(localId)).catch(() => {});
+            await enqueueOrder({ ...orderPayload, localOrderId: isKitchen ? localId : undefined });
+            clearCart();
+            toast({ title: 'تم حفظ الطلب محلياً', description: 'سيظهر في المطبخ، وسيُرسل للسحابة عند عودة الإنترنت' });
+        };
 
-                // Manual Print Logic
-                if (res.orderId) {
+        startTransition(async () => {
+            // Fast path — clearly offline: queue immediately instead of waiting
+            // several seconds for the DB connection to time out.
+            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                await queueOffline();
+                return;
+            }
+            try {
+                const res = await createOrder(orderPayload);
+                if (res?.offline) {
+                    // Server reached but DB unreachable → queue locally
+                    await queueOffline();
+                } else if (res?.error) {
+                    toast({ variant: 'destructive', title: 'خطأ', description: res.error });
+                } else if (res.orderId) {
                     setOrderSuccess(res.orderId);
-                    // Pre-fetch order data silently for printing?
-                    // Or wait for user to click Print.
-                    // We'll wait for click to be safe and simple.
-
-                    // Clear cart immediately
                     clearCart();
+                    // Refetch so the dine-in table flips to occupied and the
+                    // ready-orders list reflects the new order without a reload.
+                    await refresh();
                 }
+            } catch {
+                // Network failure — queue for later sync
+                await queueOffline();
             }
         });
     };
@@ -155,128 +273,135 @@ export function CashierView({ initialOrders, historyOrders, categories, menuItem
     };
 
     return (
-        <Tabs defaultValue="pos" className="h-[calc(100vh-6rem)] flex flex-col">
-            <div className="flex justify-center mb-2">
-                <TabsList className="grid w-[400px] grid-cols-2">
-                    <TabsTrigger value="pos" className="flex items-center gap-2">
-                        <LayoutDashboard className="w-4 h-4" />
-                        نقطة البيع
-                    </TabsTrigger>
-                    <TabsTrigger value="history" className="flex items-center gap-2">
-                        <History className="w-4 h-4" />
-                        سجل الطلبات
-                    </TabsTrigger>
-                </TabsList>
-            </div>
+        <div className="h-full bg-muted/30 p-3" dir="rtl">
+            <Tabs defaultValue="pos" className="h-full flex flex-col gap-3">
 
-            <TabsContent value="pos" className="flex-1 overflow-hidden mt-0">
-                <div className="grid grid-cols-3 h-full gap-4 overflow-hidden">
-                    {/* Right Section: Ready Orders (Kitchen) - 1/3 */}
-                    <div className="border rounded-xl shadow-sm overflow-hidden bg-white">
-                        {/* Pass updated key or data if needed, but it auto-refreshes internally too */}
-                        <ReadyOrdersList initialOrders={initialOrders} />
+                    {/* ── Top Tab Bar ── */}
+                    <div className="shrink-0 flex items-center justify-between">
+                        <TabsList className="h-10 rounded-xl gap-1 p-1">
+                            <TabsTrigger value="pos" className="gap-2 h-8 rounded-lg text-sm font-bold data-[state=active]:shadow-sm">
+                                <LayoutDashboard className="w-4 h-4" />
+                                نقطة البيع
+                            </TabsTrigger>
+                            {qrBills.length > 0 && (
+                                <TabsTrigger value="qr" className="gap-2 h-8 rounded-lg text-sm font-bold data-[state=active]:shadow-sm relative">
+                                    <QrCode className="w-4 h-4" />
+                                    طلبات QR
+                                    <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+                                        {qrBills.length}
+                                    </span>
+                                </TabsTrigger>
+                            )}
+                            <TabsTrigger value="history" className="gap-2 h-8 rounded-lg text-sm font-bold data-[state=active]:shadow-sm">
+                                <History className="w-4 h-4" />
+                                سجل الطلبات
+                            </TabsTrigger>
+                        </TabsList>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-card border rounded-lg px-3 py-2">
+                            <ClipboardCheck className="w-4 h-4 text-primary" />
+                            <span className="font-medium">كاشير — {serviceMode === 'QUICK_SERVICE' ? 'خدمة سريعة' : 'خدمة طاولات'}</span>
+                        </div>
                     </div>
 
-                    {/* Middle Section: Menu & Settings - 1/3 */}
-                    <div className="border rounded-xl shadow-sm overflow-hidden bg-white">
-                        <CashierMenu
-                            categories={categories}
-                            menuItems={menuItems}
-                            tables={tables}
-                            orderType={orderType}
-                            setOrderType={setOrderType}
-                            customerPhone={customerPhone}
-                            setCustomerPhone={setCustomerPhone}
-                            customerAddress={customerAddress}
-                            setCustomerAddress={setCustomerAddress}
-                            selectedTable={selectedTable}
-                            setSelectedTable={setSelectedTable}
-                            onAddToCart={addToCart}
+                    {/* ── POS Panel ── */}
+                    <TabsContent value="pos" className="flex-1 overflow-hidden mt-3">
+                        <div className="grid grid-cols-[300px_1fr_310px] h-full gap-3">
+
+                            {/* Ready Orders */}
+                            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden flex flex-col">
+                                <ReadyOrdersList initialOrders={initialOrders} shiftId={shiftId} />
+                            </div>
+
+                            {/* Menu */}
+                            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden flex flex-col">
+                                <CashierMenu
+                                    categories={categories}
+                                    menuItems={menuItems}
+                                    tables={tables}
+                                    orderType={orderType}
+                                    setOrderType={setOrderType}
+                                    customerPhone={customerPhone}
+                                    setCustomerPhone={setCustomerPhone}
+                                    customerAddress={customerAddress}
+                                    setCustomerAddress={setCustomerAddress}
+                                    customerLat={customerLat}
+                                    setCustomerLat={setCustomerLat}
+                                    customerLng={customerLng}
+                                    setCustomerLng={setCustomerLng}
+                                    selectedTable={selectedTable}
+                                    setSelectedTable={setSelectedTable}
+                                    onAddToCart={addToCart}
+                                />
+                            </div>
+
+                            {/* Cart */}
+                            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden flex flex-col">
+                                <CashierCart
+                                    cart={cart}
+                                    customerPhone={customerPhone}
+                                    setCustomerPhone={setCustomerPhone}
+                                    onUpdateQuantity={updateQuantity}
+                                    onRemove={removeFromCart}
+                                    onClear={clearCart}
+                                    onSubmit={handleCreateOrder}
+                                    loyaltyEnabled={loyaltyEnabled}
+                                />
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* ── QR Bills Panel ── */}
+                    <TabsContent value="qr" className="flex-1 overflow-y-auto mt-3">
+                        <PendingBillsView
+                            bills={qrBills}
+                            activeOrders={activeTableOrders}
+                            tenantId={tenantId ?? ''}
+                            shiftId={shiftId}
+                            onRefresh={onRefresh}
                         />
-                    </div>
+                    </TabsContent>
 
-                    {/* Left Section: Cart & Payment - 1/3 */}
-                    <div className="border rounded-xl shadow-sm overflow-hidden bg-white">
-                        <CashierCart
-                            cart={cart}
-                            onUpdateQuantity={updateQuantity}
-                            onRemove={removeFromCart}
-                            onClear={clearCart}
-                            onSubmit={handleCreateOrder}
-                        />
-                    </div>
-                </div>
-            </TabsContent>
+                    {/* ── History Panel ── */}
+                    <TabsContent value="history" className="flex-1 overflow-hidden mt-3">
+                        <div className="rounded-2xl border bg-card shadow-sm h-full overflow-hidden">
+                            <CashierHistory />
+                        </div>
+                    </TabsContent>
+            </Tabs>
 
-            <TabsContent value="history" className="flex-1 overflow-hidden mt-0">
-                <CashierHistory initialOrders={historyOrders} />
-            </TabsContent>
-
-            {/* Hidden Receipt for Printing */}
-            {printingOrder && (
-                <div className="hidden">
-                    <Receipt order={printingOrder} />
-                </div>
-            )}
-            {/* Note: Receipt component handles @media print visibility internally. 
-                If it's hidden here with 'hidden' class, it might not show on print unless that class is overridden in print media query.
-                Usually better to use absolute positioning off-screen or a verified print-only wrapper.
-                Or relies on Receipt component NOT being wrapped in hidden div?
-                Actually, standard Tailwind `hidden` is `display: none!important`.
-                It WON'T show on print if wrapped in `hidden`.
-                I should check `Receipt` implementation or wrapper.
-                Better approach: Render it normally but it should be structured to only show when printing?
-                Or render it only when printingOrder is set, and it takes over screen?
-                Standard practice: render standard UI, and Receipt has `@media print { display: block }` and everything else has `@media print { display: none }`.
-                If I wrap it in `hidden`, it will probably stay hidden.
-                I will render it conditionally without `hidden` class, assuming Receipt component handles "only visible on print" OR it overlays?
-                Let's look at `ReadyOrdersList` usage: `{selectedOrder && <Receipt order={selectedOrder} />}` at the bottom.
-                It seems it renders always if present?
-                If `Receipt` has `fixed inset-0 z-50 bg-white` style for print?
-                I'll assume `Receipt` component is "Print-Ready". If I render it, does it mess up the UI?
-                I'll check `ReadyOrdersList` usage again. It just renders it at the end.
-                I'll do the same.
-            */}
+            {/* Hidden receipt for print */}
             {printingOrder && <Receipt order={printingOrder} />}
 
-            <Dialog open={!!orderSuccess} onOpenChange={(open) => !open && setOrderSuccess(null)}>
-                <DialogContent className="sm:max-w-md text-center">
-                    <DialogHeader>
-                        <div className="mx-auto bg-green-100 p-3 rounded-full mb-2">
-                            <CheckCircle className="h-8 w-8 text-green-600" />
+            {/* Success Dialog */}
+            <Dialog open={!!orderSuccess} onOpenChange={open => !open && setOrderSuccess(null)}>
+                <DialogContent className="sm:max-w-sm" dir="rtl">
+                    <DialogHeader className="items-center text-center">
+                        <div className="mx-auto bg-green-100 dark:bg-green-900/30 p-4 rounded-full mb-2">
+                            <CheckCircle className="h-10 w-10 text-green-600 dark:text-green-400" />
                         </div>
-                        <DialogTitle className="text-center text-xl">تم إرسال الطلب بنجاح</DialogTitle>
-                        <DialogDescription className="text-center">
-                            تم استلام الطلب وتسجيله على النظام
-                        </DialogDescription>
+                        <DialogTitle className="text-xl">تم إرسال الطلب بنجاح</DialogTitle>
+                        <DialogDescription>تم استلام الطلب وتسجيله في النظام</DialogDescription>
                     </DialogHeader>
-                    <div className="flex items-center justify-center space-x-2 py-4">
-                        <div className="grid flex-1 gap-2">
-                            <Button
-                                size="lg"
-                                className="w-full gap-2 text-lg h-12"
-                                onClick={() => {
-                                    setOrderSuccess(null);
-                                    // Handle print or other logic if needed
-                                }}
-                            >
-                                <Printer className="h-5 w-5" />
-                                طباعة الإيصال
-                            </Button>
-                        </div>
-                    </div>
-                    <DialogFooter className="sm:justify-center">
+
+                    <div className="flex flex-col gap-2 pt-2">
                         <Button
-                            type="button"
-                            variant="secondary"
+                            size="lg"
+                            className="w-full gap-2 font-bold h-12"
+                            onClick={handlePrintSuccess}
+                        >
+                            <Printer className="h-5 w-5" />
+                            طباعة الإيصال
+                        </Button>
+                        <Button
+                            variant="outline"
                             className="w-full"
                             onClick={() => setOrderSuccess(null)}
                         >
-                            إغلاق (طلب جديد)
+                            طلب جديد
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
-        </Tabs>
+        </div>
     );
 }

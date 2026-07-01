@@ -1,61 +1,67 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { UtensilsCrossed, ScrollText, LayoutDashboard } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { LayoutDashboard, ChefHat } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function KitchenNav() {
+interface CategoryStation {
+    id: string;
+    name: string;
+}
+
+interface KitchenNavProps {
+    stations?: CategoryStation[];
+}
+
+export function KitchenNav({ stations = [] }: KitchenNavProps) {
     const pathname = usePathname();
-
-    const links = [
-        {
-            href: '/kitchen',
-            label: 'الطلبات الحالية',
-            icon: LayoutDashboard,
-            exact: true
-        },
-        {
-            href: '/kitchen/recipes',
-            label: 'الوصفات',
-            icon: ScrollText
-        },
-        {
-            href: '/kitchen/menu-items',
-            label: 'أصناف الطعام',
-            icon: UtensilsCrossed
-        },
-        {
-            href: '/kitchen/categories',
-            label: 'الأقسام',
-            icon: LayoutDashboard
-        }
-    ];
+    const searchParams = useSearchParams();
+    const activeStation = searchParams.get("station");
 
     return (
-        <nav className="flex items-center gap-1 bg-muted/50 p-1 rounded-lg">
-            {links.map((link) => {
-                const isActive = link.exact
-                    ? pathname === link.href
-                    : pathname.startsWith(link.href);
+        <div className="flex items-center gap-2">
+            <nav className="flex items-center gap-1 overflow-x-auto rounded-lg border border-border bg-muted/50 p-1">
+                <Link href="/kitchen">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                            "gap-2 whitespace-nowrap transition-all active:scale-95",
+                            pathname === "/kitchen" && !activeStation
+                                ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                    >
+                        <LayoutDashboard className="h-4 w-4" />
+                        لوحة المطبخ
+                    </Button>
+                </Link>
 
-                return (
-                    <Link key={link.href} href={link.href}>
-                        <Button
-                            variant={isActive ? "secondary" : "ghost"}
-                            size="sm"
-                            className={cn(
-                                "gap-2 transition-all active:scale-95",
-                                isActive && "bg-background shadow-sm text-primary hover:bg-background"
-                            )}
-                        >
-                            <link.icon className="w-4 h-4" />
-                            {link.label}
-                        </Button>
-                    </Link>
-                );
-            })}
-        </nav>
+                {stations.map((station) => {
+                    const stationHref = `/kitchen?station=${station.id}`;
+                    const active = pathname === "/kitchen" && activeStation === station.id;
+
+                    return (
+                        <Link key={station.id} href={stationHref}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className={cn(
+                                    "gap-2 whitespace-nowrap transition-all active:scale-95",
+                                    active
+                                        ? "bg-background text-primary shadow-sm hover:bg-background hover:text-primary"
+                                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                )}
+                            >
+                                <ChefHat className="h-4 w-4" />
+                                {station.name}
+                            </Button>
+                        </Link>
+                    );
+                })}
+            </nav>
+        </div>
     );
 }

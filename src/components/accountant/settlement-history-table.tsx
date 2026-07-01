@@ -22,8 +22,7 @@ export function SettlementHistoryTable({ bills, title, emptyMessage }: Settlemen
     return (
         <div className="space-y-4">
             <h2 className="text-xl font-bold">{title} ({bills.length})</h2>
-            <div className="border rounded-md bg-white">
-                <Table>
+        <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead className="text-right">رقم الطلب</TableHead>
@@ -63,8 +62,7 @@ export function SettlementHistoryTable({ bills, title, emptyMessage }: Settlemen
                             ))
                         )}
                     </TableBody>
-                </Table>
-            </div>
-        </div>
+        </Table>
+    </div>
     );
 }

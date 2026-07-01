@@ -101,7 +101,7 @@ export function POSInterface({ categories, menuItems, tables, initialPendingOrde
     return (
         <div className="grid grid-cols-[70%_30%] h-full overflow-hidden gap-0">
             {/* Main Content: Menu */}
-            <div className="flex flex-col p-4 gap-4 overflow-hidden border-l bg-gray-50/50 relative">
+            <div className="flex flex-col p-4 gap-3 overflow-hidden border-l bg-background relative">
 
                 {/* Header including Search and Captain Orders Notification */}
                 <div className="flex gap-4 items-center justify-between">
@@ -118,8 +118,8 @@ export function POSInterface({ categories, menuItems, tables, initialPendingOrde
                     {/* Captain Orders Button */}
                     <Sheet>
                         <SheetTrigger asChild>
-                            <Button variant="outline" className="relative gap-2 border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700">
-                                <ClipboardCheck className="w-5 h-5" />
+                            <Button variant="outline" className="relative gap-2 border-accent/30 bg-accent/10 hover:bg-accent/20 text-foreground">
+                                <ClipboardCheck className="w-5 h-5 text-accent" />
                                 طلبات الكابتن
                                 {pendingOrders.length > 0 && (
                                     <Badge variant="destructive" className="absolute -top-2 -right-2 px-1.5 min-w-[20px] h-5 flex items-center justify-center animate-bounce">
@@ -128,7 +128,7 @@ export function POSInterface({ categories, menuItems, tables, initialPendingOrde
                                 )}
                             </Button>
                         </SheetTrigger>
-                        <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                        <SheetContent side="right" className="w-[400px] sm:w-[540px] bg-background">
                             <SheetHeader>
                                 <SheetTitle>طلبات الكابتن (جديد)</SheetTitle>
                                 <SheetDescription>
@@ -141,10 +141,10 @@ export function POSInterface({ categories, menuItems, tables, initialPendingOrde
                                         <div className="text-center text-muted-foreground py-10">لا توجد طلبات معلقة</div>
                                     ) : (
                                         pendingOrders.map(order => (
-                                            <Card key={order.id} className="bg-white border-orange-100">
+                                            <Card key={order.id} className="bg-card border">
                                                 <CardContent className="p-4">
                                                     <div className="flex justify-between items-start mb-2">
-                                                        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                                                        <Badge variant="secondary">
                                                             طاولة {order.table?.number || 'بدون'}
                                                         </Badge>
                                                         <span className="text-xs text-muted-foreground">
@@ -179,46 +179,60 @@ export function POSInterface({ categories, menuItems, tables, initialPendingOrde
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <Tabs defaultValue="all" value={activeCategory} onValueChange={setActiveCategory} className="h-full flex flex-col">
-                        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap pb-0.5 mb-2">
-                            <TabsTrigger value="all">الكل</TabsTrigger>
+                        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap pb-0.5 mb-2 h-12 gap-1 bg-muted/50 rounded-lg p-1">
+                            <TabsTrigger
+                                value="all"
+                                className="h-10 px-4 text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-md"
+                            >
+                                الكل
+                            </TabsTrigger>
                             {categories.map(c => (
-                                <TabsTrigger key={c.id} value={c.id}>{c.name}</TabsTrigger>
+                                <TabsTrigger
+                                    key={c.id}
+                                    value={c.id}
+                                    className="h-10 px-4 text-sm font-semibold whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-md"
+                                >
+                                    {c.name}
+                                </TabsTrigger>
                             ))}
                         </TabsList>
 
-                        <ScrollArea className="flex-1 bg-muted/20 rounded-md p-4 border">
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-4">
+                        <ScrollArea className="flex-1 bg-muted/20 rounded-md p-3 border">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 pb-4">
                                 {filteredItems.map(item => {
                                     const hasOffer = item.offers.length > 0;
                                     return (
-                                        <Card
+                                        <div
                                             key={item.id}
                                             className={cn(
-                                                "cursor-pointer transition-all hover:scale-105 active:scale-95",
-                                                !item.isAvailable && "opacity-50 pointer-events-none"
+                                                'cursor-pointer rounded-xl border-2 border-transparent bg-card overflow-hidden',
+                                                'transition-all duration-150 active:scale-95 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10',
+                                                'flex flex-col group',
+                                                !item.isAvailable && 'opacity-40 pointer-events-none'
                                             )}
                                             onClick={() => addToCart(item)}
                                         >
-                                            <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-                                                <div className="h-24 w-full bg-secondary rounded-md flex items-center justify-center text-secondary-foreground text-xs overflow-hidden relative">
-                                                    {item.image ? (
-                                                        // eslint-disable-next-line @next/next/no-img-element
-                                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span>لا توجد صورة</span>
-                                                    )}
-                                                    {hasOffer && (
-                                                        <Badge className="absolute top-1 right-1" variant="destructive">%</Badge>
-                                                    )}
-                                                </div>
-                                                <div className="font-medium line-clamp-2 leading-tight min-h-[2.5em]">
-                                                    {item.name}
-                                                </div>
-                                                <div className="font-bold text-primary">
-                                                    {item.price.toFixed(0)} د.ع
-                                                </div>
-                                            </CardContent>
-                                        </Card>
+                                            <div className="relative h-[130px] w-full bg-muted flex items-center justify-center overflow-hidden">
+                                                {item.image ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                ) : (
+                                                    <span className="text-4xl select-none">🍽️</span>
+                                                )}
+                                                {hasOffer && (
+                                                    <span className="absolute top-2 start-2 bg-destructive text-destructive-foreground text-[11px] font-bold px-2 py-0.5 rounded-full">
+                                                        خصم
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="p-2.5 flex flex-col gap-1">
+                                                <p className="font-semibold text-sm leading-tight line-clamp-2 min-h-[2.5em]">{item.name}</p>
+                                                <p className="font-black text-base text-primary">
+                                                    {item.price.toFixed(0)}
+                                                    <span className="text-xs font-normal text-muted-foreground me-1"> د.ع</span>
+                                                </p>
+                                            </div>
+                                        </div>
                                     )
                                 })}
                                 {filteredItems.length === 0 && (

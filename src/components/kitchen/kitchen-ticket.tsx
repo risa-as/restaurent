@@ -1,24 +1,31 @@
 'use client';
 
-import { Order, OrderItem, MenuItem, Table } from '@prisma/client';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Order, OrderItem, MenuItem, Table, OrderItemModifier, ModifierOption } from '@prisma/client';
 import { Button } from '@/components/ui/button';
 import { updateKitchenItemStatus } from '@/lib/actions/kitchen';
 import { useTransition, useEffect, useState, useOptimistic } from 'react';
 import { differenceInMinutes } from 'date-fns';
-import { Check, Flame, Loader2 } from 'lucide-react';
-import { RelativeTime } from '@/components/common/relative-time';
+import { Check, Flame, Loader2, Clock, AlertTriangle, ChefHat, Bike } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type OrderItemModifierWithOption = OrderItemModifier & { modifierOption: ModifierOption };
+type KitchenOrderItem = OrderItem & {
+    menuItem: MenuItem;
+    modifiers?: OrderItemModifierWithOption[];
+};
 
 interface KitchenTicketProps {
     order: Order & { table: Table | null };
-    items: (OrderItem & { menuItem: MenuItem })[];
+    items: KitchenOrderItem[];
     categoryName?: string;
+    onRefresh?: () => void | Promise<void>;
+    tenantId?: string;
 }
 
-export function KitchenTicket({ order, items, categoryName }: KitchenTicketProps) {
+export function KitchenTicket({ order, items, onRefresh, tenantId }: KitchenTicketProps) {
     const [isPending, startTransition] = useTransition();
     const [elapsed, setElapsed] = useState(0);
-    // Determine initial status based on items
+
     const getInitialStatus = () => {
         const allReady = items.every(i => i.status === 'READY' || i.status === 'SERVED' || i.status === 'COMPLETED');
         const anyPreparing = items.some(i => i.status === 'PREPARING');
@@ -29,110 +36,218 @@ export function KitchenTicket({ order, items, categoryName }: KitchenTicketProps
 
     const [optimisticStatus, setOptimisticStatus] = useOptimistic(
         getInitialStatus(),
-        (state, newStatus: string) => newStatus
+        (_state, newStatus: string) => newStatus
     );
 
-    // Update timer every minute for color coding
     useEffect(() => {
-        const interval = setInterval(() => {
-            setElapsed(differenceInMinutes(new Date(), new Date(order.createdAt)));
-        }, 60000);
-        setElapsed(differenceInMinutes(new Date(), new Date(order.createdAt)));
+        const update = () => setElapsed(differenceInMinutes(new Date(), new Date(order.createdAt)));
+        update();
+        const interval = setInterval(update, 30000);
         return () => clearInterval(interval);
     }, [order.createdAt]);
 
-
-    const borderColor = elapsed > 20 ? 'border-red-500 bg-red-50' : elapsed > 10 ? 'border-orange-500 bg-orange-50' : 'border-blue-200 bg-white';
+    const isLocal = (order as any)._local === true;
 
     const handleAction = () => {
         startTransition(async () => {
-            // If currently PENDING, move to PREPARING. Else (PREPARING) move to READY.
             const nextStatus = optimisticStatus === 'PENDING' ? 'PREPARING' : 'READY';
             setOptimisticStatus(nextStatus);
-
-            await updateKitchenItemStatus(items.map(i => i.id), nextStatus);
+            const itemIds = items.map(i => i.id);
+            try {
+                if (isLocal) {
+                    // Offline order living only on this device — update it locally
+                    const { updateLiveOrderItems } = await import('@/lib/offline/db');
+                    await updateLiveOrderItems(order.id, itemIds, nextStatus);
+                } else {
+                    await updateKitchenItemStatus(itemIds, nextStatus);
+                }
+            } catch {
+                // Online order but DB unreachable → queue so the update isn't lost
+                const { enqueue } = await import('@/lib/offline/db');
+                for (const id of itemIds) {
+                    await enqueue({
+                        type: 'UPDATE_ITEM_STATUS',
+                        tenantId: tenantId ?? (order as any).tenantId ?? '',
+                        payload: { orderId: order.id, itemId: id, status: nextStatus },
+                    }).catch(() => {});
+                }
+            }
+            // Refetch so the parent's `items` reflect the new status. Awaited inside
+            // the transition so useOptimistic holds the new state until fresh data
+            // arrives — without this the button visibly reverts to its old label.
+            await onRefresh?.();
         });
     };
 
+    const isLate    = elapsed > 15;
+    const isWarning = elapsed >= 10 && elapsed <= 15;
+
+    const scheme = optimisticStatus === 'READY'
+        ? {
+            strip: 'bg-emerald-500',
+            card:  'border-emerald-400/50 bg-emerald-50/10 dark:bg-emerald-950/15',
+            time:  'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+            badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+          }
+        : optimisticStatus === 'PREPARING'
+        ? {
+            strip: 'bg-blue-500',
+            card:  'border-blue-400/50 bg-blue-50/10 dark:bg-blue-950/15',
+            time:  'bg-blue-100/80 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+            badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
+          }
+        : isLate
+        ? {
+            strip: 'bg-red-500 animate-pulse',
+            card:  'border-red-400/60 bg-red-50/20 dark:bg-red-950/20',
+            time:  'bg-red-100/80 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+            badge: 'bg-red-500/15 text-red-700 dark:text-red-300',
+          }
+        : isWarning
+        ? {
+            strip: 'bg-amber-400',
+            card:  'border-amber-400/50 bg-amber-50/10 dark:bg-amber-950/15',
+            time:  'bg-amber-100/80 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+            badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+          }
+        : {
+            strip: 'bg-zinc-400',
+            card:  'border-border bg-card',
+            time:  'bg-muted text-muted-foreground',
+            badge: 'bg-muted text-muted-foreground',
+          };
+
     return (
-        <Card className={`border-2 shadow-sm ${borderColor} flex flex-col h-full`}>
-            <CardHeader className="pb-1 p-2 bg-white/50">
-                <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-black">
+        <div className={cn(
+            'flex flex-col rounded-lg border shadow-sm overflow-hidden',
+            scheme.card
+        )}>
+            {/* ── Status strip ── */}
+            <div className={cn('h-1 w-full shrink-0', scheme.strip)} />
+
+            {/* ── Header ── */}
+            <div className="flex items-center justify-between px-2.5 pt-2 pb-1.5 border-b border-border/40">
+                <div className="flex items-center gap-2 min-w-0">
+                    {/* Order number */}
+                    <span className="text-xl font-black tabular-nums leading-none text-foreground shrink-0">
                         #{order.orderNumber}
-                    </CardTitle>
-                    <span className="text-sm font-bold">
-                        {order.tableId ? `طاولة ${order.table?.number}` : 'سفري'}
                     </span>
-                </div>
-                {categoryName && (
-                    <div className="bg-primary/10 text-primary-foreground font-bold text-center text-xs py-0.5 mt-0.5 rounded bg-slate-800">
-                        {categoryName}
+
+                    {/* Divider */}
+                    <span className="text-border/60 text-sm select-none">|</span>
+
+                    {/* Table / delivery */}
+                    <div className="flex items-center gap-1 min-w-0">
+                        {order.tableId
+                            ? <>
+                                <ChefHat className="w-3 h-3 text-muted-foreground shrink-0" />
+                                <span className="text-xs font-semibold text-muted-foreground truncate">
+                                    طاولة {order.table?.number}
+                                </span>
+                              </>
+                            : <>
+                                <Bike className="w-3 h-3 text-muted-foreground shrink-0" />
+                                <span className="text-xs font-semibold text-muted-foreground">سفري</span>
+                              </>
+                        }
                     </div>
-                )}
-                <div className="text-xs font-semibold text-muted-foreground mr-auto text-left" dir="ltr">
-                    <RelativeTime date={order.createdAt} />
                 </div>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto bg-white/30 p-2">
-                <div className="space-y-2">
-                    {items.map(item => (
-                        <div key={item.id} className="flex justify-between items-start border-b border-black/10 pb-1 last:border-0">
-                            <div className="flex gap-2">
-                                <span className="text-base font-bold border-r border-black/20 pr-2 min-w-[20px] flex items-center">{item.quantity}</span>
-                                <div>
-                                    <div className="text-sm font-semibold leading-tight">{item.menuItem.name}</div>
-                                    {item.notes && (
-                                        <div className="text-[10px] font-bold text-red-600 bg-yellow-200 inline-block px-1 mt-0.5 rounded">
-                                            ⚠️ {item.notes}
-                                        </div>
-                                    )}
+
+                {/* Elapsed time */}
+                <div className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-md shrink-0',
+                    scheme.time
+                )}>
+                    {isLate
+                        ? <AlertTriangle className="w-3 h-3 shrink-0" />
+                        : <Clock className="w-3 h-3 shrink-0" />
+                    }
+                    <span className="text-sm font-black tabular-nums leading-none">{elapsed}</span>
+                    <span className="text-[10px] font-bold leading-none">د</span>
+                </div>
+            </div>
+
+            {/* ── Items list ── */}
+            <div className="flex-1 px-2.5 py-2 space-y-1.5 overflow-y-auto min-h-0">
+                {items.map(item => (
+                    <div key={item.id} className="flex items-start gap-2 pb-1.5 border-b border-border/30 last:border-0 last:pb-0">
+                        {/* Qty badge */}
+                        <span className={cn(
+                            'flex items-center justify-center w-6 h-6 rounded-md text-xs font-black shrink-0 mt-0.5',
+                            optimisticStatus === 'READY'
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-primary text-primary-foreground'
+                        )}>
+                            {item.quantity}
+                        </span>
+
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold leading-tight text-foreground">
+                                {item.menuItem.nameAr || item.menuItem.name}
+                            </p>
+
+                            {item.modifiers && item.modifiers.length > 0 && (
+                                <div className="mt-0.5 flex flex-wrap gap-1">
+                                    {item.modifiers.map(mod => (
+                                        <span key={mod.id} className="text-[10px] text-blue-700 bg-blue-50 dark:bg-blue-950 dark:text-blue-300 px-1 py-0.5 rounded font-medium leading-tight">
+                                            +{mod.modifierOption.nameAr || mod.modifierOption.name}
+                                        </span>
+                                    ))}
                                 </div>
-                            </div>
+                            )}
+
+                            {item.notes && (
+                                <p className="text-[10px] font-bold text-amber-800 bg-amber-100 dark:bg-amber-950 dark:text-amber-200 inline-flex items-center gap-0.5 px-1 py-0.5 mt-0.5 rounded leading-tight">
+                                    ⚠ {item.notes}
+                                </p>
+                            )}
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
+
+                {/* Order note */}
                 {order.note && (
-                    <div className="mt-2 p-1 bg-yellow-100 border border-yellow-300 rounded text-red-800 font-bold text-xs">
-                        ملاحظة: {order.note}
+                    <div className="px-2 py-1.5 bg-amber-50 dark:bg-amber-950/60 border border-amber-300/50 rounded-md text-amber-800 dark:text-amber-200 font-semibold text-xs flex items-start gap-1">
+                        <span className="shrink-0 text-[11px]">📝</span>
+                        <span className="leading-snug">{order.note}</span>
                     </div>
                 )}
-            </CardContent>
-            <CardFooter className="pt-1 p-2 bg-white/80 border-t">
+            </div>
+
+            {/* ── Action button ── */}
+            <div className="px-2 pb-2 pt-1.5 border-t border-border/30 bg-card/30">
                 {optimisticStatus === 'PENDING' && (
                     <Button
-                        className="w-full h-8 text-sm font-bold bg-blue-600 hover:bg-blue-700"
+                        size="sm"
+                        className="w-full h-8 text-xs font-bold gap-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={handleAction}
                         disabled={isPending}
                     >
-                        <div className="flex items-center gap-1">
-                            <Flame className="w-4 h-4" /> بدء
-                        </div>
+                        <Flame className="w-3.5 h-3.5" />
+                        بدء التحضير
                     </Button>
                 )}
                 {optimisticStatus === 'PREPARING' && (
                     <Button
-                        className="w-full h-8 text-sm font-bold bg-orange-600 hover:bg-orange-700"
+                        size="sm"
+                        className="w-full h-8 text-xs font-bold gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
                         onClick={handleAction}
                         disabled={isPending}
                     >
-                        <div className="flex items-center gap-1">
-                            <Loader2 className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
-                            {isPending ? '...' : 'إنهاء'}
-                        </div>
+                        {isPending
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Check className="w-3.5 h-3.5" />
+                        }
+                        {isPending ? 'جاري الحفظ...' : 'جاهز للتقديم'}
                     </Button>
                 )}
                 {optimisticStatus === 'READY' && (
-                    <Button
-                        className="w-full h-8 text-sm font-bold bg-green-600 hover:bg-green-700"
-                        disabled
-                    >
-                        <div className="flex items-center gap-1">
-                            <Check className="w-4 h-4" /> جاهز
-                        </div>
-                    </Button>
+                    <div className="w-full h-8 rounded-lg bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-bold text-xs">
+                        <Check className="w-3.5 h-3.5" />
+                        جاهز ✓
+                    </div>
                 )}
-            </CardFooter>
-        </Card>
+            </div>
+        </div>
     );
 }

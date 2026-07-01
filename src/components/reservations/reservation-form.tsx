@@ -59,7 +59,7 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
             guests: 2,
             reservationTime: new Date(),
             notes: '',
-            tableId: '',
+            tableIds: [],
         } as ReservationFormValues,
     });
 
@@ -140,11 +140,14 @@ export function ReservationForm({ onSuccess, initialData, tables = [] }: Reserva
                 <FormField
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     control={form.control as any}
-                    name="tableId"
+                    name="tableIds"
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>تعيين طاولة (اختياري)</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select
+                                onValueChange={(val) => field.onChange(val === 'none' ? [] : [val])}
+                                defaultValue={field.value?.[0] || 'none'}
+                            >
                                 <FormControl>
                                     <SelectTrigger dir="rtl">
                                         <SelectValue placeholder="اختر طاولة" />

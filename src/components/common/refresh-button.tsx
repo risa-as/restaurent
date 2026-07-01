@@ -8,17 +8,22 @@ import { cn } from '@/lib/utils';
 
 interface RefreshButtonProps {
     className?: string;
+    onRefresh?: () => void;
 }
 
-export function RefreshButton({ className }: RefreshButtonProps) {
+export function RefreshButton({ className, onRefresh }: RefreshButtonProps) {
     const router = useRouter();
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const handleRefresh = async () => {
         setIsRefreshing(true);
-        router.refresh();
-        // Artificial delay to show animation (as refresh is async but doesn't return promise)
-        setTimeout(() => setIsRefreshing(false), 1000);
+        if (onRefresh) {
+            onRefresh();
+            setTimeout(() => setIsRefreshing(false), 1000);
+        } else {
+            router.refresh();
+            setTimeout(() => setIsRefreshing(false), 1000);
+        }
     };
 
     return (
