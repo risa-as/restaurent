@@ -1,10 +1,26 @@
 import Link from 'next/link';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
 export const metadata = {
     title: 'منصة إدارة المطاعم',
 };
 
-export default function MarketingPage() {
+export default async function MarketingPage() {
+  const session = await auth();
+
+  // Logged-in users skip the public landing and go straight to their workspace.
+  if (session?.user) {
+    const role = session.user.role;
+    if (role === 'STORE_MANAGER') redirect('/inventory');
+    else if (role === 'CASHIER') redirect('/cashier');
+    else if (role === 'CHEF') redirect('/kitchen');
+    else if (role === 'CAPTAIN') redirect('/captain');
+    else if (role === 'WAITER') redirect('/waiter');
+    else if (role === 'DRIVER' || role === 'DELIVERY_MANAGER') redirect('/delivery');
+    else redirect('/dashboard');
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4 dark:bg-slate-900">
       <div className="max-w-3xl space-y-8 text-center">
