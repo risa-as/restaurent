@@ -3,22 +3,28 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { triggerPusher } from '@/lib/pusher';
 import { deductOrderStock } from '@/lib/actions/order-completion';
+import { resolveCreateBranchId } from '@/lib/utils/branch-filter';
+import { settleTableBill } from '@/lib/actions/cashier';
 import type { QueuedAction } from '@/lib/offline/db';
 import { OrderStatus } from '@prisma/client';
 
 // Roles permitted to submit offline-queued operations
 const SYNC_ALLOWED_ROLES = ['ADMIN', 'MANAGER', 'CAPTAIN', 'CASHIER', 'WAITER', 'CHEF'];
 
-// Roles permitted to update order / item status (kitchen + management only)
-const STATUS_UPDATE_ROLES = ['ADMIN', 'MANAGER', 'CHEF', 'CASHIER'];
+// Per-role allowlist of ORDER statuses an offline client may set. WAITER and
+// CAPTAIN can only confirm delivery to the customer (SERVED) — their online
+// actions (serveOrder) allow exactly that transition, so offline must match.
+const ORDER_STATUS_BY_ROLE: Record<string, OrderStatus[]> = {
+  ADMIN: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.SERVED],
+  MANAGER: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.SERVED],
+  CASHIER: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.SERVED],
+  CHEF: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
+  WAITER: [OrderStatus.SERVED],
+  CAPTAIN: [OrderStatus.SERVED],
+};
 
-// Valid order status transitions from offline clients
-const ALLOWED_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.PENDING,
-  OrderStatus.PREPARING,
-  OrderStatus.READY,
-  OrderStatus.SERVED,
-];
+// Roles permitted to update ITEM status (kitchen + management only)
+const STATUS_UPDATE_ROLES = ['ADMIN', 'MANAGER', 'CHEF', 'CASHIER'];
 
 // Valid item status values from offline clients (no COMPLETED — cashier flow required).
 // OrderItem.status uses the shared OrderStatus enum (there is no OrderItemStatus).
@@ -71,7 +77,7 @@ export async function POST(req: NextRequest) {
         return handleUpdateItemStatus(action, user.tenantId!, user.role);
 
       case 'CLOSE_BILL':
-        return handleCloseBill(action, user.tenantId!, user.role);
+        return handleCloseBill(action, user.tenantId!, user.role, user.id);
 
       default:
         return NextResponse.json({ error: 'نوع إجراء غير معروف' }, { status: 400 });
@@ -111,13 +117,6 @@ async function handleCreateOrder(action: QueuedAction, tenantId: string, userRol
   };
 
   const VALID_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED', 'COMPLETED'];
-  const safeOrderStatus = (orderStatus && VALID_STATUSES.includes(orderStatus)) ? orderStatus : 'PENDING';
-  // Inventory is deducted at serve/complete. deductOrderStock() skips COMPLETED
-  // orders, so create as SERVED first when the final state is COMPLETED, deduct,
-  // then promote to COMPLETED.
-  const needsStockDeduction = ['SERVED', 'COMPLETED'].includes(safeOrderStatus);
-  const createStatus = safeOrderStatus === 'COMPLETED' ? 'SERVED' : safeOrderStatus;
-
   // Only order-taking roles can create orders
   if (!['ADMIN', 'MANAGER', 'CAPTAIN', 'CASHIER', 'WAITER'].includes(userRole)) {
     return NextResponse.json({ error: 'دورك لا يملك صلاحية إنشاء الطلبات' }, { status: 403 });
@@ -130,6 +129,36 @@ async function handleCreateOrder(action: QueuedAction, tenantId: string, userRol
   const isDelivery = deliveryType === 'delivery';
   const isAuthorizedCashier = ['ADMIN', 'MANAGER', 'CASHIER'].includes(userRole);
 
+  let safeOrderStatus = (orderStatus && VALID_STATUSES.includes(orderStatus)) ? orderStatus : 'PENDING';
+  // A non-cashier creator (captain/waiter) produces NO Bill at sync — the order
+  // must stay settleable, so cap its final state at SERVED. Otherwise a captain
+  // order finished offline would land COMPLETED with no bill and never reach
+  // the cashier (lost revenue record).
+  if (!isAuthorizedCashier && safeOrderStatus === 'COMPLETED') safeOrderStatus = 'SERVED';
+  // Inventory: deduct at sync ONLY when the bill is also created here (cashier
+  // creators). For captain/waiter orders the deduction happens at settle time
+  // (settleTableBill), exactly like their online flow — deducting here too
+  // would double-count the stock when the cashier later settles the bill.
+  const needsStockDeduction = isAuthorizedCashier && !isDelivery && ['SERVED', 'COMPLETED'].includes(safeOrderStatus);
+  // deductOrderStock() skips COMPLETED orders, so create as SERVED first when
+  // the final state is COMPLETED, deduct, then promote to COMPLETED.
+  const createStatus = safeOrderStatus === 'COMPLETED' && needsStockDeduction ? 'SERVED' : safeOrderStatus;
+
+  // Idempotency: the queued action id travels with every retry/tab. If this
+  // exact action already created an order (a retry after a lost response, or a
+  // second tab racing the same queue), return the existing order instead of
+  // creating a duplicate.
+  const existing = await prisma.order.findFirst({
+    where: { tenantId, clientRequestId: action.id },
+    select: { id: true, orderNumber: true, status: true },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { orderId: existing.id, orderNumber: existing.orderNumber, status: existing.status, synced: true, duplicate: true },
+      { status: 200 },
+    );
+  }
+
   // The shift cookie is long gone by sync time — resolve by cashierId.
   const activeShift = await prisma.cashierShift.findFirst({
     where: { cashierId: userId, tenantId, closedAt: null },
@@ -137,7 +166,13 @@ async function handleCreateOrder(action: QueuedAction, tenantId: string, userRol
     select: { id: true },
   });
 
-  const order = await prisma.$transaction(async (tx) => {
+  // Same branch resolution as online order creation: assigned branch → active
+  // branch → the tenant's main branch — never NULL for a provisioned tenant.
+  const resolvedBranchId = await resolveCreateBranchId(tenantId, userBranchId);
+
+  let order;
+  try {
+    order = await prisma.$transaction(async (tx) => {
     const settings = await tx.systemSetting.findFirst({ where: { tenantId } });
     const taxRate = settings?.taxRate || 0;
     const serviceFeePct = settings?.serviceFee || 0;
@@ -203,9 +238,10 @@ async function handleCreateOrder(action: QueuedAction, tenantId: string, userRol
     const created = await tx.order.create({
       data: {
         tenantId,
-        // Server-derived from the cashier's assigned branch — never trust the
+        // Server-derived (assigned/active/main branch) — never trust the
         // client payload for branch attribution.
-        branchId: userBranchId ?? null,
+        branchId: resolvedBranchId,
+        clientRequestId: action.id,
         tableId: tableId ?? null,
         status: createStatus as any,
         tax: taxAmount,
@@ -260,7 +296,24 @@ async function handleCreateOrder(action: QueuedAction, tenantId: string, userRol
     }
 
     return created;
-  }, { timeout: 20000 });
+    }, { timeout: 20000 });
+  } catch (err: unknown) {
+    // Unique violation on clientRequestId → another tab/retry won the race and
+    // already created this order. Return it instead of failing.
+    if ((err as { code?: string })?.code === 'P2002') {
+      const winner = await prisma.order.findFirst({
+        where: { tenantId, clientRequestId: action.id },
+        select: { id: true, orderNumber: true, status: true },
+      });
+      if (winner) {
+        return NextResponse.json(
+          { orderId: winner.id, orderNumber: winner.orderNumber, status: winner.status, synced: true, duplicate: true },
+          { status: 200 },
+        );
+      }
+    }
+    throw err;
+  }
 
   // Deduct inventory for served/completed offline orders — in a SEPARATE
   // transaction so insufficient stock never rolls back the (financial) order.
@@ -288,20 +341,25 @@ async function handleCreateOrder(action: QueuedAction, tenantId: string, userRol
       : []),
   ]);
 
-  return NextResponse.json({ orderId: order.id, synced: true }, { status: 201 });
+  return NextResponse.json(
+    { orderId: order.id, orderNumber: order.orderNumber, status: safeOrderStatus, synced: true },
+    { status: 201 },
+  );
 }
 
 async function handleUpdateOrderStatus(action: QueuedAction, tenantId: string, userRole: string) {
-  // VULN-07 fix: restrict roles + validate status against allowlist
-  if (!STATUS_UPDATE_ROLES.includes(userRole)) {
+  // VULN-07 fix: per-role allowlist of reachable statuses (WAITER/CAPTAIN may
+  // only confirm SERVED — mirrors their online serveOrder action).
+  const allowedStatuses = ORDER_STATUS_BY_ROLE[userRole];
+  if (!allowedStatuses) {
     return NextResponse.json({ error: 'دورك لا يملك صلاحية تحديث حالة الطلب' }, { status: 403 });
   }
 
   const { orderId, status } = action.payload as { orderId: string; status: string };
 
-  if (!ALLOWED_ORDER_STATUSES.includes(status as OrderStatus)) {
+  if (!allowedStatuses.includes(status as OrderStatus)) {
     return NextResponse.json(
-      { error: `حالة الطلب غير مسموح بها: ${status}` },
+      { error: `حالة الطلب غير مسموح بها لدورك: ${status}` },
       { status: 400 },
     );
   }
@@ -362,24 +420,39 @@ async function handleUpdateItemStatus(action: QueuedAction, tenantId: string, us
   return NextResponse.json({ synced: true });
 }
 
-async function handleCloseBill(action: QueuedAction, tenantId: string, userRole: string) {
+async function handleCloseBill(action: QueuedAction, tenantId: string, userRole: string, userId: string) {
   // Only cashier/admin can close bills
   if (!['ADMIN', 'MANAGER', 'CASHIER'].includes(userRole)) {
     return NextResponse.json({ error: 'دورك لا يملك صلاحية إغلاق الفواتير' }, { status: 403 });
   }
 
-  const { orderId } = action.payload as { orderId: string; paymentMethod: string };
+  const { orderId, paymentMethod } = action.payload as { orderId: string; paymentMethod?: string };
 
   const order = await prisma.order.findFirst({
     where: { id: orderId, tenantId },
-    select: { id: true, totalAmount: true },
+    select: { id: true, status: true },
   });
   if (!order) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 });
 
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: 'COMPLETED' },
+  // Already settled (a retry, or another device closed it first) — idempotent.
+  if (order.status === 'COMPLETED') {
+    return NextResponse.json({ synced: true, duplicate: true });
+  }
+
+  // The shift cookie is long gone by sync time — resolve by cashierId.
+  const activeShift = await prisma.cashierShift.findFirst({
+    where: { cashierId: userId, tenantId, closedAt: null },
+    orderBy: { openedAt: 'desc' },
+    select: { id: true },
   });
+
+  // Full settle flow — same as the online action: stock deduction, recalculated
+  // amount, Bill record, shift totals, loyalty points, table → DIRTY.
+  const pm = paymentMethod === 'CARD' ? 'CARD' : 'CASH';
+  const result = await settleTableBill(orderId, pm, activeShift?.id);
+  if (result?.error) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
   return NextResponse.json({ synced: true });
 }

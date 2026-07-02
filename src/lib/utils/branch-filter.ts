@@ -82,12 +82,24 @@ export async function resolveCreateBranchId(
  * Memoized per request via React.cache to avoid repeated tenant + auth queries.
  */
 export const getActiveBranchId = cache(async (tenantId: string): Promise<string | null> => {
-    const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { multiBranchEnabled: true },
-    });
+    // Reuse the per-request tenant scope already resolved for Prisma isolation
+    // instead of issuing a second Tenant query on every request. Falls back to
+    // a direct lookup for cross-tenant contexts (e.g. superadmin tooling).
+    const { getTenantScope } = await import('@/lib/tenant');
+    const scope = await getTenantScope();
 
-    if (!tenant?.multiBranchEnabled) return null;
+    let multiBranchEnabled: boolean;
+    if (scope.kind === 'tenant' && scope.id === tenantId) {
+        multiBranchEnabled = scope.multiBranchEnabled;
+    } else {
+        const tenant = await prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { multiBranchEnabled: true },
+        });
+        multiBranchEnabled = tenant?.multiBranchEnabled ?? false;
+    }
+
+    if (!multiBranchEnabled) return null;
 
     const session = await auth();
     const role = session?.user?.role as string;

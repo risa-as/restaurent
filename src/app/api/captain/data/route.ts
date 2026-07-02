@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiRole } from '@/lib/api-guard';
 import { getCaptainMenu, getTables } from '@/lib/actions/captain';
 import { getEffectiveServiceMode } from '@/lib/actions/config';
 import { getActiveBranchId } from '@/lib/utils/branch-filter';
@@ -8,10 +8,11 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  // Same roles allowed to create captain orders (createCaptainOrder)
+  const guard = await requireApiRole(['ADMIN', 'MANAGER', 'CAPTAIN', 'WAITER']);
+  if (guard.response) return guard.response;
 
-  const tenantId = (session.user as any).tenantId as string | undefined;
+  const tenantId = guard.user.tenantId;
   const branchId = tenantId ? await getActiveBranchId(tenantId) : null;
   const branchWhere = branchId ? { branchId } : {};
 

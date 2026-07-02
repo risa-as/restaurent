@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { GlobalSidebar } from '@/components/layout/global-sidebar';
 import { GlobalHeader } from '@/components/layout/global-header';
 import { NetworkStatusBanner } from '@/components/offline/network-status-banner';
+import { OrderLog } from '@/components/offline/order-log';
 
 export default async function CashierLayout({
     children,
@@ -25,6 +26,7 @@ export default async function CashierLayout({
                     {children}
                 </main>
             </div>
+            <OrderLog tenantId={(session?.user as { tenantId?: string } | undefined)?.tenantId} />
             <Toaster />
         </div>
     );

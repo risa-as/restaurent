@@ -17,6 +17,9 @@ export async function getKitchenOrders() {
 
         const branchFilter = await getBranchFilter(tenantId);
 
+        // select (not include) — the board only renders these fields; the full
+        // include shipped every MenuItem/Category column in the JSON on every
+        // poll, several times the payload for zero extra information.
         const orders = await prisma.order.findMany({
             where: {
                 tenantId,
@@ -27,22 +30,36 @@ export async function getKitchenOrders() {
                     { status: 'READY', delivery: { status: 'PENDING' } }
                 ]
             },
-            include: {
-                table: true,
+            select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                note: true,
+                createdAt: true,
+                tableId: true,
+                table: { select: { id: true, number: true } },
                 items: {
-                    include: {
+                    select: {
+                        id: true,
+                        quantity: true,
+                        status: true,
+                        notes: true,
                         menuItem: {
-                            include: {
-                                category: true
-                            }
+                            select: {
+                                id: true,
+                                name: true,
+                                nameAr: true,
+                                category: { select: { id: true, name: true } },
+                            },
                         },
                         modifiers: {
-                            include: {
-                                modifierOption: true
-                            }
-                        }
-                    }
-                }
+                            select: {
+                                id: true,
+                                modifierOption: { select: { name: true, nameAr: true } },
+                            },
+                        },
+                    },
+                },
             },
             orderBy: { createdAt: 'asc' }
         });

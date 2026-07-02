@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiRole } from '@/lib/api-guard';
 import { getCashierOrders, getPendingBills, getActiveTableOrders, getQrPendingBills } from '@/lib/actions/cashier';
 import { getPOSData } from '@/lib/actions/pos';
 import { getEffectiveServiceMode } from '@/lib/actions/config';
@@ -10,10 +10,11 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  // Financial data (shift totals, sales) — cashier chain only
+  const guard = await requireApiRole(['ADMIN', 'MANAGER', 'CASHIER']);
+  if (guard.response) return guard.response;
 
-  const tenantId = (session.user as any).tenantId as string | undefined;
+  const tenantId = guard.user.tenantId;
 
   // Wave 1 — all independent queries run in parallel (was sequential ~7s, now ~1-2s)
   const [

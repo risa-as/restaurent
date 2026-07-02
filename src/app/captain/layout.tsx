@@ -4,6 +4,7 @@ import { GlobalSidebar } from '@/components/layout/global-sidebar';
 import { GlobalHeader } from '@/components/layout/global-header';
 import { CaptainNav } from '@/components/captain/captain-nav';
 import { NetworkStatusBanner } from '@/components/offline/network-status-banner';
+import { OrderLog } from '@/components/offline/order-log';
 
 export default async function CaptainLayout({
     children,
@@ -28,6 +29,7 @@ export default async function CaptainLayout({
                     {children}
                 </main>
             </div>
+            <OrderLog tenantId={(session?.user as { tenantId?: string } | undefined)?.tenantId} />
             <Toaster />
         </div>
     );

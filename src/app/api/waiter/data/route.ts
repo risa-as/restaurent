@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiRole } from '@/lib/api-guard';
 import { getReadyOrders, getDirtyTables, getServedOrders } from '@/lib/actions/waiter';
 import { getTablesNeedingReview } from '@/lib/actions/table-review';
 import { getEffectiveServiceMode } from '@/lib/actions/config';
@@ -7,8 +7,8 @@ import { getEffectiveServiceMode } from '@/lib/actions/config';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  const guard = await requireApiRole(['ADMIN', 'MANAGER', 'WAITER', 'CAPTAIN']);
+  if (guard.response) return guard.response;
 
   const [serviceMode, readyOrders, dirtyTables, servedOrders, tablesNeedingReview] = await Promise.all([
     getEffectiveServiceMode(),

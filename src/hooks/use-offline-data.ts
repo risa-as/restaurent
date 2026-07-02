@@ -39,9 +39,14 @@ export function useOfflineData<T>(
     try {
       // 15s cap for the Electron case where the local server hangs on an
       // unreachable cloud DB. A genuine offline fetch rejects almost immediately.
+      // Also abort the underlying fetch so the socket isn't left running after
+      // the race has already settled.
       const timeoutPromise = new Promise<never>(
         (_, reject) =>
-          (timeoutId = setTimeout(() => reject(new Error('NETWORK_TIMEOUT')), 15000)),
+          (timeoutId = setTimeout(() => {
+            reject(new Error('NETWORK_TIMEOUT'));
+            controller.abort();
+          }, 15000)),
       );
 
       const res = await Promise.race([
@@ -106,12 +111,14 @@ export function useOfflineData<T>(
 
       setFailCount((c) => c + 1);
     } finally {
-      // Only the LATEST load may clear `loading`. If a newer load aborted this one,
-      // leave loading as-is so the spinner stays until the newer load resolves.
+      // Only the LATEST load may clear `loading`. If a newer load superseded this
+      // one, leave loading as-is so the spinner stays until the newer load resolves.
       // Otherwise an aborted initial fetch (React StrictMode's double-invoke in dev,
       // or a quick refetch) would set loading=false while data is still null —
       // flashing the empty state ("لا توجد أقسام") for the whole real fetch.
-      if (!silent && !controller.signal.aborted) setLoading(false);
+      // (Checked via abortRef identity, not signal.aborted — the 15s timeout also
+      // aborts this controller and that case MUST still clear the spinner.)
+      if (!silent && abortRef.current === controller) setLoading(false);
     }
   }, [apiUrl, cacheKey]);
 

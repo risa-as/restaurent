@@ -2,6 +2,7 @@ import { GlobalSidebar } from '@/components/layout/global-sidebar';
 import { GlobalHeader } from '@/components/layout/global-header';
 import { KitchenNav } from '@/components/kitchen/kitchen-nav';
 import { NetworkStatusBanner } from '@/components/offline/network-status-banner';
+import { OrderLog } from '@/components/offline/order-log';
 import { Toaster } from '@/components/ui/toaster';
 import { auth } from '@/lib/auth';
 import { getCategories } from '@/lib/actions/menu';
@@ -50,6 +51,7 @@ export default async function KitchenLayout({
                     </div>
                 </main>
             </div>
+            <OrderLog tenantId={(session?.user as { tenantId?: string } | undefined)?.tenantId} />
             <Toaster />
         </div>
     );

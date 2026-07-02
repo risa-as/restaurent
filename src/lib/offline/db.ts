@@ -1,5 +1,7 @@
 const DB_NAME = 'restaurant-offline';
-const DB_VERSION = 4; // v4: adds live_orders store for single-device offline order flow
+// v4: adds live_orders store for single-device offline order flow
+// v5: adds failed_actions (no more silent drops) + order_log (device order history)
+const DB_VERSION = 5;
 
 export interface OfflineOrder {
   id: string;
@@ -62,6 +64,32 @@ export interface QueuedAction {
   tenantId: string;
 }
 
+/** A queued action that could not be synced — kept for user-visible retry, never silently dropped. */
+export interface FailedAction extends QueuedAction {
+  failedAt: number;
+  reason: string;
+}
+
+/**
+ * One entry per order created from THIS device (online or offline) — powers the
+ * on-device order log shown on the operational pages.
+ */
+export interface OrderLogEntry {
+  id: string; // localOrderId for offline orders, server orderId for online ones
+  serverOrderId?: string | null;
+  orderNumber?: number | null;
+  source: 'cashier' | 'captain';
+  tableName?: string | null;
+  orderType: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  itemsCount: number;
+  total: number;
+  /** Last known order status (mirrored from live_orders for offline orders). */
+  status: string;
+  sync: 'synced' | 'pending' | 'failed';
+  createdAt: number;
+  tenantId: string;
+}
+
 let dbInstance: IDBDatabase | null = null;
 
 export function openDB(): Promise<IDBDatabase> {
@@ -113,11 +141,31 @@ export function openDB(): Promise<IDBDatabase> {
         const liveStore = db.createObjectStore('live_orders', { keyPath: 'id' });
         liveStore.createIndex('createdAt', 'createdAt');
       }
+
+      // v5: actions that exhausted retries or got a 4xx — surfaced in the UI
+      // instead of being silently deleted.
+      if (!db.objectStoreNames.contains('failed_actions')) {
+        const failedStore = db.createObjectStore('failed_actions', { keyPath: 'id' });
+        failedStore.createIndex('failedAt', 'failedAt');
+      }
+
+      // v5: on-device log of orders created from this device (online + offline).
+      if (!db.objectStoreNames.contains('order_log')) {
+        const logStore = db.createObjectStore('order_log', { keyPath: 'id' });
+        logStore.createIndex('createdAt', 'createdAt');
+      }
     };
 
     request.onsuccess = (event) => {
-      dbInstance = (event.target as IDBOpenDBRequest).result;
-      resolve(dbInstance);
+      const db = (event.target as IDBOpenDBRequest).result;
+      // If another tab upgrades the DB (new deploy bumps DB_VERSION), release the
+      // connection so the upgrade isn't blocked forever by this stale tab.
+      db.onversionchange = () => {
+        db.close();
+        if (dbInstance === db) dbInstance = null;
+      };
+      dbInstance = db;
+      resolve(db);
     };
 
     request.onerror = () => reject(request.error);
@@ -248,6 +296,75 @@ export async function getQueueCount(): Promise<number> {
   return queue.length;
 }
 
+// ── Failed Actions (never silently drop an operation) ────────────────────────
+
+/** Move a queued action to the failed store instead of deleting it. */
+export async function markActionFailed(action: QueuedAction, reason: string): Promise<void> {
+  const db = await openDB();
+  const failed: FailedAction = { ...action, failedAt: Date.now(), reason };
+  await txPut(db, 'failed_actions', failed);
+  await txDelete(db, 'sync_queue', action.id);
+}
+
+export async function getFailedActions(): Promise<FailedAction[]> {
+  const db = await openDB();
+  const all = await txGetAll<FailedAction>(db, 'failed_actions');
+  return all.sort((a, b) => a.failedAt - b.failedAt);
+}
+
+export async function getFailedCount(): Promise<number> {
+  return (await getFailedActions()).length;
+}
+
+/** Put every failed action back on the sync queue with a fresh retry budget. */
+export async function requeueFailedActions(): Promise<number> {
+  const db = await openDB();
+  const failed = await txGetAll<FailedAction>(db, 'failed_actions');
+  for (const { failedAt: _f, reason: _r, ...action } of failed) {
+    await txPut(db, 'sync_queue', { ...action, retries: 0 });
+    await txDelete(db, 'failed_actions', action.id);
+  }
+  return failed.length;
+}
+
+export async function removeFailedAction(id: string): Promise<void> {
+  const db = await openDB();
+  await txDelete(db, 'failed_actions', id);
+}
+
+// ── Order Log (on-device history of created orders) ──────────────────────────
+
+export async function addOrderLog(entry: OrderLogEntry): Promise<void> {
+  const db = await openDB();
+  await txPut(db, 'order_log', entry);
+}
+
+export async function updateOrderLog(id: string, patch: Partial<OrderLogEntry>): Promise<void> {
+  const db = await openDB();
+  const entry = await txGet<OrderLogEntry>(db, 'order_log', id);
+  if (!entry) return;
+  await txPut(db, 'order_log', { ...entry, ...patch });
+}
+
+const ORDER_LOG_MAX = 200;
+
+/** Newest-first log entries for this tenant, pruning anything past the cap. */
+export async function getOrderLog(tenantId: string, limit = 50): Promise<OrderLogEntry[]> {
+  const db = await openDB();
+  const all = await txGetAll<OrderLogEntry>(db, 'order_log');
+  const sorted = all
+    .filter((e) => e.tenantId === tenantId)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  // Prune old entries so the store can't grow unbounded (best effort).
+  if (all.length > ORDER_LOG_MAX) {
+    const excess = all.sort((a, b) => b.createdAt - a.createdAt).slice(ORDER_LOG_MAX);
+    await Promise.all(excess.map((e) => txDelete(db, 'order_log', e.id).catch(() => {})));
+  }
+
+  return sorted.slice(0, limit);
+}
+
 // ── Page Cache (CSR offline fallback) ─────────────────────────────────────────
 
 export async function writePageCache(pageKey: string, data: unknown): Promise<void> {
@@ -322,6 +439,7 @@ export async function updateLiveOrderItems(orderId: string, itemIds: string[] | 
   order.status = allReady ? 'READY' : anyPreparing ? 'PREPARING' : order.status;
   order.updatedAt = new Date().toISOString();
   await txPut(db, 'live_orders', order);
+  await updateOrderLog(orderId, { status: order.status }).catch(() => {});
 }
 
 /** Set the whole-order status (e.g. SERVED / COMPLETED). */
@@ -332,6 +450,13 @@ export async function setLiveOrderStatus(orderId: string, status: string): Promi
   order.status = status;
   order.updatedAt = new Date().toISOString();
   await txPut(db, 'live_orders', order);
+  await updateOrderLog(orderId, { status }).catch(() => {});
+}
+
+/** Remove a single local order — called when ITS create action has synced. */
+export async function deleteLiveOrder(orderId: string): Promise<void> {
+  const db = await openDB();
+  await txDelete(db, 'live_orders', orderId);
 }
 
 /** Clear all local orders — called once the queue has fully synced to the server. */
@@ -351,7 +476,9 @@ export async function clearLiveOrders(): Promise<void> {
  */
 export async function clearOfflineCaches(): Promise<void> {
   const db = await openDB();
-  const readCaches = ['menu_items', 'tables', 'kitchen_cache', 'page_cache', 'offlineOrders'];
+  // order_log is per-tenant history — cleared so the next user on this device
+  // can't browse the previous tenant's orders.
+  const readCaches = ['menu_items', 'tables', 'kitchen_cache', 'page_cache', 'offlineOrders', 'order_log'];
   await Promise.all(
     readCaches
       .filter((s) => db.objectStoreNames.contains(s))

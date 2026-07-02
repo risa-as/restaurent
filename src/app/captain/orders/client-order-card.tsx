@@ -15,10 +15,11 @@ interface ClientOrderCardProps {
     order: any; // ToDo: Fix type
     config: { label: string; color: string };
     status: string;
+    tenantId?: string;
     onRefresh?: () => void | Promise<void>;
 }
 
-export function ClientOrderCard({ order, config, status, onRefresh }: ClientOrderCardProps) {
+export function ClientOrderCard({ order, config, status, tenantId, onRefresh }: ClientOrderCardProps) {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
@@ -31,30 +32,48 @@ export function ClientOrderCard({ order, config, status, onRefresh }: ClientOrde
 
     const handleComplete = () => {
         startTransition(async () => {
-            // Local offline order living only on this device
-            if (typeof order.id === 'string' && order.id.startsWith('local_')) {
-                const { setLiveOrderStatus } = await import('@/lib/offline/db');
-                await setLiveOrderStatus(order.id, 'COMPLETED').catch(() => {});
+            try {
+                // Local offline order living only on this device.
+                // Kept at SERVED (not COMPLETED) so after sync the cashier can
+                // still settle the bill — a bill-less COMPLETED order would
+                // silently skip payment.
+                if (typeof order.id === 'string' && order.id.startsWith('local_')) {
+                    const { setLiveOrderStatus } = await import('@/lib/offline/db');
+                    await setLiveOrderStatus(order.id, 'SERVED').catch(() => {});
+                    toast({
+                        title: "تم التسليم",
+                        description: `تم تسليم الطلب رقم #${order.orderNumber} بنجاح`,
+                        className: "bg-green-500 text-white border-none"
+                    });
+                    await onRefresh?.();
+                    return;
+                }
+                const res = await markOrderCompleted(order.id);
+                if (res.error) {
+                    toast({
+                        title: "خطأ",
+                        description: res.error,
+                        variant: "destructive"
+                    });
+                } else {
+                    toast({
+                        title: "تم التسليم",
+                        description: `تم تسليم الطلب رقم #${order.orderNumber} بنجاح`,
+                        className: "bg-green-500 text-white border-none"
+                    });
+                    await onRefresh?.();
+                }
+            } catch {
+                // Offline — queue the SERVED transition so it isn't lost.
+                const { enqueue } = await import('@/lib/offline/db');
+                await enqueue({
+                    type: 'UPDATE_ORDER_STATUS',
+                    tenantId: tenantId ?? order.tenantId ?? '',
+                    payload: { orderId: order.id, status: 'SERVED' },
+                }).catch(() => {});
                 toast({
-                    title: "تم التسليم",
-                    description: `تم تسليم الطلب رقم #${order.orderNumber} بنجاح`,
-                    className: "bg-green-500 text-white border-none"
-                });
-                await onRefresh?.();
-                return;
-            }
-            const res = await markOrderCompleted(order.id);
-            if (res.error) {
-                toast({
-                    title: "خطأ",
-                    description: res.error,
-                    variant: "destructive"
-                });
-            } else {
-                toast({
-                    title: "تم التسليم",
-                    description: `تم تسليم الطلب رقم #${order.orderNumber} بنجاح`,
-                    className: "bg-green-500 text-white border-none"
+                    title: "تم حفظ التسليم محلياً",
+                    description: 'سيُرسل تلقائياً عند عودة الإنترنت',
                 });
                 await onRefresh?.();
             }

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { verifyRole, getCurrentUser } from '@/lib/auth-guard';
 import { checkPlanCount } from '@/lib/plan-limits';
 import { requireTenantId } from '@/lib/utils/require-tenant';
-import { getBranchFilter, getOperationalBranchWhere } from '@/lib/utils/branch-filter';
+import { getBranchFilter, getOperationalBranchWhere, resolveCreateBranchId } from '@/lib/utils/branch-filter';
 import { withAudit } from '@/lib/audit';
 import { TalabatClient } from '@/lib/talabat';
 import { triggerPusher } from '@/lib/pusher';
@@ -98,7 +98,9 @@ export async function createCaptainOrder(data: {
     try {
         await checkPlanCount(tenantId, 'monthlyOrder');
 
-        const branchFilter = await getBranchFilter(tenantId);
+        // Standard branch attribution (assigned/active/main) — never NULL for a
+        // provisioned tenant, unlike the old getBranchFilter() spread.
+        const createBranchId = await resolveCreateBranchId(tenantId);
 
         // Verify the table belongs to this tenant
         const table = await prisma.table.findFirst({
@@ -108,7 +110,7 @@ export async function createCaptainOrder(data: {
 
         const now = new Date();
 
-        await prisma.$transaction(async (tx) => {
+        const created = await prisma.$transaction(async (tx) => {
             let totalAmount = 0;
             const orderItemsData = [];
 
@@ -178,21 +180,24 @@ export async function createCaptainOrder(data: {
                 });
             }
 
-            await tx.order.create({
+            const order = await tx.order.create({
                 data: {
                     tableId: data.tableId,
-                    ...branchFilter,
+                    branchId: createBranchId,
                     status: 'PENDING',
                     totalAmount,
                     tenantId,
                     items: { create: orderItemsData }
-                }
+                },
+                select: { id: true, orderNumber: true }
             });
 
             await tx.table.update({
                 where: { id: data.tableId },
                 data: { status: 'OCCUPIED' }
             });
+
+            return order;
         }, {
             timeout: 20000
         });
@@ -200,7 +205,7 @@ export async function createCaptainOrder(data: {
         revalidatePath('/dashboard/kitchen');
         revalidatePath('/dashboard/pos');
         revalidatePath('/dashboard/orders');
-        return { success: true };
+        return { success: true, orderId: created.id, orderNumber: created.orderNumber };
     } catch (error: any) {
         if (error?.upgradeRequired) return { error: error.message, upgradeRequired: true };
         console.error("Failed to create captain order", error);

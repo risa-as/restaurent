@@ -266,6 +266,10 @@ model Order {
   updatedAt       DateTime    @updatedAt
   note            String?
   qrSessionToken  String?
+  // Idempotency key from the offline sync queue (the queued action id). A retry
+  // or a second tab re-sending the same queued CREATE_ORDER hits the unique
+  // constraint below instead of creating a duplicate order.
+  clientRequestId String?
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -287,6 +291,7 @@ model Order {
   billSplits   BillSplit[]
   talabatOrder TalabatOrder?
 
+  @@unique([tenantId, clientRequestId])
   @@index([tenantId])
   @@index([createdAt])
   @@index([status])

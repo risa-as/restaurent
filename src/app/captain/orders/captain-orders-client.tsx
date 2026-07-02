@@ -69,6 +69,7 @@ export function CaptainOrdersClient({ tenantId }: { tenantId: string }) {
               order={order}
               config={statusConfig[order.status] || statusConfig.PENDING}
               status={order.status}
+              tenantId={tenantId}
               onRefresh={refreshAll}
             />
           ))

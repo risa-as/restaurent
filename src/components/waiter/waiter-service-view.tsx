@@ -260,7 +260,7 @@ export function WaiterServiceView({ readyOrders: initialOrders, servedOrders: in
             ordersChannel.unbind_all();
             pusher.unsubscribe(`tenant-${tenantId}-orders`);
         };
-    }, [refresh]);
+    }, [refresh, tenantId]);
 
     // Auto-refresh كل 60 ثانية لاكتشاف طاولات تجاوزت وقت المراجعة
     useEffect(() => {
@@ -300,25 +300,40 @@ export function WaiterServiceView({ readyOrders: initialOrders, servedOrders: in
     const handleServe = (orderId: string) => {
         setLoadingId(orderId);
         startTransition(async () => {
-            // Local offline order living only on this device
-            if (orderId.startsWith('local_')) {
-                const { setLiveOrderStatus } = await import('@/lib/offline/db');
-                await setLiveOrderStatus(orderId, 'SERVED').catch(() => {});
-                toast({ title: '✅ تم التسليم', description: 'الطلب وصل للزبون' });
+            try {
+                // Local offline order living only on this device
+                if (orderId.startsWith('local_')) {
+                    const { setLiveOrderStatus } = await import('@/lib/offline/db');
+                    await setLiveOrderStatus(orderId, 'SERVED').catch(() => {});
+                    toast({ title: '✅ تم التسليم', description: 'الطلب وصل للزبون' });
+                    hideServed(orderId);
+                    void refresh();
+                    return;
+                }
+                const result = await serveOrder(orderId);
+                if (result.error) {
+                    toast({ title: 'فشل التحديث', description: result.error, variant: 'destructive' });
+                } else {
+                    toast({ title: '✅ تم التسليم', description: 'الطلب وصل للزبون' });
+                    hideServed(orderId);
+                    void refresh();
+                }
+            } catch {
+                // Offline while serving a SERVER order — queue the transition so
+                // it isn't lost (previously this threw unhandled and the button
+                // stayed stuck on the spinner).
+                const { enqueue } = await import('@/lib/offline/db');
+                await enqueue({
+                    type: 'UPDATE_ORDER_STATUS',
+                    tenantId: tenantId ?? '',
+                    payload: { orderId, status: 'SERVED' },
+                }).catch(() => {});
+                toast({ title: 'تم حفظ التسليم محلياً', description: 'سيُرسل تلقائياً عند عودة الإنترنت' });
                 hideServed(orderId);
                 void refresh();
+            } finally {
                 setLoadingId(null);
-                return;
             }
-            const result = await serveOrder(orderId);
-            if (result.error) {
-                toast({ title: 'فشل التحديث', description: result.error, variant: 'destructive' });
-            } else {
-                toast({ title: '✅ تم التسليم', description: 'الطلب وصل للزبون' });
-                hideServed(orderId);
-                void refresh();
-            }
-            setLoadingId(null);
         });
     };
 

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiRole } from '@/lib/api-guard';
 import { getCaptainActiveOrders } from '@/lib/actions/captain';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  const guard = await requireApiRole(['ADMIN', 'MANAGER', 'CAPTAIN', 'WAITER']);
+  if (guard.response) return guard.response;
 
   const orders = await getCaptainActiveOrders();
   return NextResponse.json({ orders });

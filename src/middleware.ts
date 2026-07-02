@@ -58,7 +58,10 @@ function isLocalRequest(req: NextRequest): boolean {
         host.includes('localhost') ||
         ip === '127.0.0.1' ||
         ip === '::1' ||
-        ip === 'unknown'
+        // An absent client IP only bypasses rate limiting OUTSIDE production —
+        // in production a direct connection without x-forwarded-for would
+        // otherwise skip every limit.
+        (ip === 'unknown' && process.env.NODE_ENV !== 'production')
     );
 }
 

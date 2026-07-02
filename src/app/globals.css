@@ -159,3 +159,25 @@
 }
 /* Customer QR Order pages */
 .customer-page { direction: rtl; font-family: 'Cairo', 'Segoe UI', Arial, sans-serif; }
+
+/* ─── Offline mode visual indicator (operational pages) ─── */
+@keyframes offline-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 48px 0; }
+}
+.offline-stripes-bar {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #dc2626 0px, #dc2626 12px,
+    #991b1b 12px, #991b1b 24px
+  );
+  background-size: 48px 100%;
+  animation: offline-stripes 1.2s linear infinite;
+}
+@keyframes offline-pulse-ring {
+  0%, 100% { box-shadow: inset 0 0 0 3px rgba(220, 38, 38, 0.45); }
+  50% { box-shadow: inset 0 0 0 3px rgba(220, 38, 38, 0.15); }
+}
+.offline-viewport-ring {
+  animation: offline-pulse-ring 2s ease-in-out infinite;
+}

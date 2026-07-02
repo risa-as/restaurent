@@ -15,7 +15,9 @@ export interface TenantContext {
  */
 export type TenantScope =
     // An authenticated tenant user whose tenant resolved successfully.
-    | ({ kind: 'tenant' } & TenantContext)
+    // Carries multiBranchEnabled so branch-filter helpers don't need a second
+    // Tenant query per request.
+    | ({ kind: 'tenant'; multiBranchEnabled: boolean } & TenantContext)
     // No tenant claim to enforce: an unauthenticated/public request, a
     // SUPER_ADMIN (tenantId = null → sees all tenants), or a system context
     // with no Next.js request (seed scripts, cron, build). No injection.
@@ -63,10 +65,16 @@ export const getTenantScope = cache(async (): Promise<TenantScope> => {
         const { prisma: prismaClient } = await import('@/lib/prisma');
         const tenant = await prismaClient.tenant.findUnique({
             where: { id: sessionTenantId },
-            select: { id: true, slug: true, isActive: true },
+            select: { id: true, slug: true, isActive: true, multiBranchEnabled: true },
         });
         if (!tenant) return { kind: 'denied' };
-        return { kind: 'tenant', id: tenant.id, slug: tenant.slug, isActive: tenant.isActive };
+        return {
+            kind: 'tenant',
+            id: tenant.id,
+            slug: tenant.slug,
+            isActive: tenant.isActive,
+            multiBranchEnabled: tenant.multiBranchEnabled,
+        };
     } catch {
         return { kind: 'denied' };
     }

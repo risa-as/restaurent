@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { GlobalSidebar } from '@/components/layout/global-sidebar';
 import { GlobalHeader } from '@/components/layout/global-header';
 import { NetworkStatusBanner } from '@/components/offline/network-status-banner';
+import { OrderLog } from '@/components/offline/order-log';
 import { PlanUpgradePrompt } from '@/components/plan/plan-upgrade-prompt';
 import { getEffectiveLimits } from '@/lib/plan-limits';
 import { prisma } from '@/lib/prisma';
@@ -56,6 +57,7 @@ export default async function DeliveryLayout({
                     {children}
                 </main>
             </div>
+            <OrderLog tenantId={tenantId} />
             <Toaster />
         </div>
     );

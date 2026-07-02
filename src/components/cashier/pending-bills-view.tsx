@@ -87,17 +87,35 @@ export function PendingBillsView({ bills: initialBills, activeOrders = [], tenan
     const handleSettle = (orderId: string, paymentMethod: 'CASH' | 'CARD') => {
         setLoadingId(orderId);
         startTransition(async () => {
-            const result = await settleTableBill(orderId, paymentMethod, shiftId);
-            if (result.error) {
-                toast({ title: 'فشل التحديث', description: result.error, variant: 'destructive' });
-            } else {
-                toast({ title: '✅ تم تسوية الحساب', description: 'الطلب اكتمل، الطاولة بانتظار التنظيف' });
-                // Card gone immediately on confirmed success; reconcile the rest
-                // (table status, totals) via a background refetch we don't await.
+            // Offline path: queue a CLOSE_BILL — the sync endpoint runs the full
+            // settle (bill + shift totals + stock + loyalty) when back online.
+            const queueOffline = async () => {
+                const { enqueue } = await import('@/lib/offline/db');
+                await enqueue({ type: 'CLOSE_BILL', tenantId, payload: { orderId, paymentMethod } });
                 setSettledIds(prev => new Set(prev).add(orderId));
-                void refresh();
+                toast({ title: 'تم حفظ التحصيل محلياً', description: 'ستُسوى الفاتورة تلقائياً عند عودة الإنترنت' });
+            };
+            try {
+                if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                    await queueOffline();
+                    return;
+                }
+                const result = await settleTableBill(orderId, paymentMethod, shiftId);
+                if (result.error) {
+                    toast({ title: 'فشل التحديث', description: result.error, variant: 'destructive' });
+                } else {
+                    toast({ title: '✅ تم تسوية الحساب', description: 'الطلب اكتمل، الطاولة بانتظار التنظيف' });
+                    // Card gone immediately on confirmed success; reconcile the rest
+                    // (table status, totals) via a background refetch we don't await.
+                    setSettledIds(prev => new Set(prev).add(orderId));
+                    void refresh();
+                }
+            } catch {
+                // Network failure mid-request — keep the settle, sync later.
+                await queueOffline();
+            } finally {
+                setLoadingId(null);
             }
-            setLoadingId(null);
         });
     };
 

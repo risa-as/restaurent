@@ -19,6 +19,14 @@ export function LogoutButton({ variant = 'dropdown' }: LogoutButtonProps) {
             // see the previous tenant's menu/tables/orders. Un-synced offline work
             // (sync_queue / live_orders) is intentionally preserved.
             await clearOfflineCaches().catch(() => { /* best effort */ });
+            // Also drop the service worker's Cache Storage — its NetworkFirst API
+            // caches hold authenticated JSON keyed by URL only (not by user), so a
+            // stale copy could be served to the next user while offline.
+            if (typeof caches !== 'undefined') {
+                await caches.keys()
+                    .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+                    .catch(() => { /* best effort */ });
+            }
             await signOut();
         });
     };

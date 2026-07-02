@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { createCaptainOrder, updateTableStatus } from '@/lib/actions/captain';
 import { enqueueOrder } from '@/lib/offline-queue';
+import { saveLiveOrder, addOrderLog, type LiveOrder } from '@/lib/offline/db';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Minus, Plus, Trash2, UtensilsCrossed, Pizza, ShoppingCart, LayoutGrid, ClipboardList, ChevronsUpDown, Search } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -196,12 +197,101 @@ export function CaptainOrderForm({ categories, tables: initialTables, readyOrder
             })),
         };
 
+        const cartTotal = cart.reduce((sum, item) => {
+            const base = getEffectivePrice(item.menuItem).price;
+            const mods = (item.modifiers ?? []).reduce((s, m) => s + m.priceAdjustment, 0);
+            return sum + (base + mods) * item.quantity;
+        }, 0);
+        const tableObj = tables.find(t => t.id === selectedTable);
+
+        // Full local order (same shape kitchen/waiter render) so an offline
+        // captain order is visible across pages on this device until sync.
+        const buildLiveOrder = (localId: string): LiveOrder => ({
+            id: localId,
+            orderNumber: Math.floor(Date.now() / 1000) % 100000,
+            tenantId: tenantId ?? '',
+            tableId: selectedTable,
+            table: tableObj ? { number: tableObj.number } : null,
+            status: 'PENDING',
+            note: null,
+            totalAmount: cartTotal,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            items: cart.map((c, idx) => {
+                const category = categories.find(cat => cat.id === c.menuItem.categoryId);
+                const mods = (c.modifiers ?? []).reduce((s, m) => s + m.priceAdjustment, 0);
+                const unit = getEffectivePrice(c.menuItem).price + mods;
+                return {
+                    id: `${localId}_i${idx}`,
+                    quantity: c.quantity,
+                    status: 'PENDING',
+                    notes: c.notes ?? null,
+                    unitPrice: unit,
+                    totalPrice: unit * c.quantity,
+                    menuItem: {
+                        id: c.menuItem.id,
+                        name: c.menuItem.name,
+                        nameAr: (c.menuItem as any).nameAr ?? null,
+                        category: { id: category?.id ?? '', name: category?.name ?? 'أخرى' },
+                    },
+                    modifiers: (c.modifiers ?? []).map((m, mi) => ({
+                        id: `${localId}_i${idx}_m${mi}`,
+                        modifierOption: { name: m.name, nameAr: m.name },
+                    })),
+                };
+            }),
+            _local: true,
+        });
+
+        // tenantId is REQUIRED by /api/offline/sync — without it the queued
+        // action is rejected with 400 and the order would be lost.
+        const submitOffline = async () => {
+            const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            await saveLiveOrder(buildLiveOrder(localId)).catch(() => {});
+            await enqueueOrder({ ...orderPayload, tenantId: tenantId ?? '', localOrderId: localId });
+            await addOrderLog({
+                id: localId,
+                source: 'captain',
+                tableName: tableObj?.number ?? null,
+                orderType: 'DINE_IN',
+                itemsCount: cart.reduce((s, c) => s + c.quantity, 0),
+                total: cartTotal,
+                status: 'PENDING',
+                sync: 'pending',
+                createdAt: Date.now(),
+                tenantId: tenantId ?? '',
+            }).catch(() => {});
+            setCart([]);
+            setSelectedTable('');
+            toast({ title: 'تم حفظ الطلب محلياً', description: 'سيظهر في المطبخ، وسيُرسل تلقائياً عند عودة الإنترنت' });
+        };
+
         startTransition(async () => {
+            // Fast path — clearly offline: queue immediately instead of waiting
+            // for the server action call to time out.
+            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                await submitOffline();
+                return;
+            }
             try {
                 const result = await createCaptainOrder(orderPayload);
                 if (result.success) {
                     // تحديث حالة الطاولة فورياً (optimistic) قبل وصول Pusher event
                     setTableStatuses(prev => ({ ...prev, [selectedTable]: 'OCCUPIED' }));
+                    await addOrderLog({
+                        id: result.orderId ?? `srv_${Date.now()}`,
+                        serverOrderId: result.orderId ?? null,
+                        orderNumber: result.orderNumber ?? null,
+                        source: 'captain',
+                        tableName: tableObj?.number ?? null,
+                        orderType: 'DINE_IN',
+                        itemsCount: cart.reduce((s, c) => s + c.quantity, 0),
+                        total: cartTotal,
+                        status: 'PENDING',
+                        sync: 'synced',
+                        createdAt: Date.now(),
+                        tenantId: tenantId ?? '',
+                    }).catch(() => {});
                     toast({ title: 'تم إرسال الطلب للمطبخ بنجاح' });
                     setCart([]);
                     setSelectedTable('');
@@ -209,10 +299,7 @@ export function CaptainOrderForm({ categories, tables: initialTables, readyOrder
                     toast({ title: 'حدث خطأ أثناء إرسال الطلب', variant: 'destructive' });
                 }
             } catch {
-                await enqueueOrder(orderPayload);
-                setCart([]);
-                setSelectedTable('');
-                toast({ title: 'تم حفظ الطلب محلياً', description: 'سيرسل تلقائياً عند عودة الإنترنت' });
+                await submitOffline();
             }
         });
     };

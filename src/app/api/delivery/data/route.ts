@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiRole } from '@/lib/api-guard';
 import { getDeliveryOrders, getDrivers, getUnpaidDeliveryOrders, getAllDeliveryOrders } from '@/lib/actions/delivery';
 import { getMenuItems } from '@/lib/actions/menu';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+  const guard = await requireApiRole(['ADMIN', 'MANAGER', 'DELIVERY_MANAGER', 'DRIVER']);
+  if (guard.response) return guard.response;
 
-  const isManager = ['DELIVERY_MANAGER', 'ADMIN', 'MANAGER'].includes(session.user.role as string);
-  const driverId = !isManager ? session.user.id : undefined;
+  const isManager = ['DELIVERY_MANAGER', 'ADMIN', 'MANAGER'].includes(guard.user.role);
+  const driverId = !isManager ? guard.user.userId : undefined;
 
   const [deliveries, drivers, unpaidDeliveries, menuItems, historyDeliveries] = await Promise.all([
     getDeliveryOrders(),
@@ -27,6 +27,6 @@ export async function GET() {
     menuItems,
     historyDeliveries,
     isManager,
-    userId: session.user.id,
+    userId: guard.user.userId,
   });
 }

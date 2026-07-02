@@ -8,7 +8,7 @@ import { useState, useTransition, useEffect, useRef, useCallback } from 'react';
 import { createOrder } from '@/lib/actions/pos';
 import { getOrderForReceipt } from '@/lib/actions/cashier';
 import { enqueueOrder, drainQueue } from '@/lib/offline-queue';
-import { saveLiveOrder, type LiveOrder } from '@/lib/offline/db';
+import { saveLiveOrder, addOrderLog, type LiveOrder } from '@/lib/offline/db';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LayoutDashboard, History, ClipboardCheck, QrCode } from 'lucide-react';
@@ -223,6 +223,22 @@ export function CashierView({ initialOrders, categories, menuItems, tables, serv
             };
         };
 
+        const logEntryBase = () => {
+            const tableObj = orderType === 'dine_in' ? tables.find(t => t.id === selectedTable) : null;
+            return {
+                source: 'cashier' as const,
+                tableName: tableObj?.number ?? null,
+                orderType: (orderType === 'delivery' ? 'DELIVERY' : orderType === 'takeaway' ? 'TAKEAWAY' : 'DINE_IN') as 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY',
+                itemsCount: cart.reduce((s, c) => s + c.quantity, 0),
+                total: cart.reduce((s, c) => {
+                    const mods = (c.modifiers ?? []).reduce((m, x) => m + (x.priceAdjustment || 0), 0);
+                    return s + (c.menuItem.price + mods) * c.quantity;
+                }, 0),
+                createdAt: Date.now(),
+                tenantId: tenantId ?? '',
+            };
+        };
+
         const queueOffline = async () => {
             // Save the visible local order BEFORE clearing the cart. localOrderId
             // ties the queued sync action to the live order so its final offline
@@ -230,7 +246,13 @@ export function CashierView({ initialOrders, categories, menuItems, tables, serv
             const isKitchen = orderType !== 'delivery';
             const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
             if (isKitchen) await saveLiveOrder(buildLiveOrder(localId)).catch(() => {});
-            await enqueueOrder({ ...orderPayload, localOrderId: isKitchen ? localId : undefined });
+            const queueId = await enqueueOrder({ ...orderPayload, localOrderId: isKitchen ? localId : undefined });
+            await addOrderLog({
+                id: isKitchen ? localId : queueId,
+                status: 'PENDING',
+                sync: 'pending',
+                ...logEntryBase(),
+            }).catch(() => {});
             clearCart();
             toast({ title: 'تم حفظ الطلب محلياً', description: 'سيظهر في المطبخ، وسيُرسل للسحابة عند عودة الإنترنت' });
         };
@@ -251,6 +273,13 @@ export function CashierView({ initialOrders, categories, menuItems, tables, serv
                     toast({ variant: 'destructive', title: 'خطأ', description: res.error });
                 } else if (res.orderId) {
                     setOrderSuccess(res.orderId);
+                    await addOrderLog({
+                        id: res.orderId,
+                        serverOrderId: res.orderId,
+                        status: 'PENDING',
+                        sync: 'synced',
+                        ...logEntryBase(),
+                    }).catch(() => {});
                     clearCart();
                     // Refetch so the dine-in table flips to occupied and the
                     // ready-orders list reflects the new order without a reload.
