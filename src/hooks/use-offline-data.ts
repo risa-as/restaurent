@@ -28,7 +28,8 @@ export function useOfflineData<T>(
 
   const load = useCallback(async (silent = false) => {
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
     // Silent (background) refresh keeps the current UI mounted instead of
     // flashing the full-page loading spinner — used by refetch / retries.
     if (!silent) setLoading(true);
@@ -45,7 +46,7 @@ export function useOfflineData<T>(
 
       const res = await Promise.race([
         fetch(apiUrl, {
-          signal: abortRef.current.signal,
+          signal: controller.signal,
           credentials: 'same-origin',
           cache: 'no-store',
         }),
@@ -105,7 +106,12 @@ export function useOfflineData<T>(
 
       setFailCount((c) => c + 1);
     } finally {
-      if (!silent) setLoading(false);
+      // Only the LATEST load may clear `loading`. If a newer load aborted this one,
+      // leave loading as-is so the spinner stays until the newer load resolves.
+      // Otherwise an aborted initial fetch (React StrictMode's double-invoke in dev,
+      // or a quick refetch) would set loading=false while data is still null —
+      // flashing the empty state ("لا توجد أقسام") for the whole real fetch.
+      if (!silent && !controller.signal.aborted) setLoading(false);
     }
   }, [apiUrl, cacheKey]);
 

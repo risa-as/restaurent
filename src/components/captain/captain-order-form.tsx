@@ -250,7 +250,7 @@ export function CaptainOrderForm({ categories, tables: initialTables, readyOrder
             )}
 
             <div className="flex h-full gap-4">
-                <div className="flex-1 flex flex-col gap-4 min-h-0">
+                <div className="flex-1 min-w-0 flex flex-col gap-4 min-h-0">
                     <div className="bg-card p-4 rounded-lg shadow-sm border flex items-center gap-4 shrink-0">
                         <ConnectionDot connected={true} className="mr-auto order-last" />
 
@@ -377,15 +377,15 @@ export function CaptainOrderForm({ categories, tables: initialTables, readyOrder
                     )}
 
                     <Tabs defaultValue="all_food" className={`flex-1 flex flex-col bg-card rounded-lg shadow-sm border items-start min-h-0 ${view === 'tables' ? 'hidden' : ''}`} dir="rtl">
-                        <TabsList className="w-full justify-start h-16 p-2 bg-muted/50 border-b rounded-t-lg rounded-b-none shrink-0">
-                            <TabsTrigger value="all_food" className="h-full px-8 text-lg gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                        <TabsList className="w-full max-w-full justify-start h-16 p-2 bg-muted/50 border-b rounded-t-lg rounded-b-none shrink-0 overflow-x-auto flex-nowrap">
+                            <TabsTrigger value="all_food" className="h-full px-8 text-lg gap-2 shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                                 <UtensilsCrossed className="w-5 h-5" /> الكل
                             </TabsTrigger>
                             {categories.map(category => (
                                 <TabsTrigger
                                     key={category.id}
                                     value={category.id}
-                                    className="h-full px-8 text-lg gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                                    className="h-full px-8 text-lg gap-2 shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                                 >
                                     <Pizza className="w-5 h-5" /> {category.name}
                                 </TabsTrigger>
@@ -401,7 +401,7 @@ export function CaptainOrderForm({ categories, tables: initialTables, readyOrder
                     </Tabs>
                 </div>
 
-                <Card className="w-96 flex flex-col h-full border-2 border-primary/20 shadow-lg">
+                <Card className="w-96 shrink-0 flex flex-col h-full border-2 border-primary/20 shadow-lg">
                     <CardContent className="p-4 flex flex-col h-full">
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2 border-b pb-4">
                             <span className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm">{cart.length}</span>

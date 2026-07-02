@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { verifyRole, getCurrentUser } from '@/lib/auth-guard';
 import { checkPlanCount } from '@/lib/plan-limits';
 import { requireTenantId } from '@/lib/utils/require-tenant';
-import { getBranchFilter, getActiveBranchId, getOperationalBranchWhere } from '@/lib/utils/branch-filter';
+import { getBranchFilter, getOperationalBranchWhere } from '@/lib/utils/branch-filter';
 import { withAudit } from '@/lib/audit';
 import { TalabatClient } from '@/lib/talabat';
 import { triggerPusher } from '@/lib/pusher';
@@ -17,8 +17,11 @@ export async function getCaptainMenu() {
         const tenantId = user?.tenantId;
         if (!tenantId) return [];
 
-        const branchId = await getActiveBranchId(tenantId);
-        const branchWhere = branchId ? { branchId } : {};
+        // Branch isolation: a specific active branch → only that branch; otherwise
+        // active-branch-or-null (never leaks disabled/other branches — matches
+        // getMenuItems/getCategories). The old `branchId ? {branchId} : {}` fallback
+        // showed every branch's + legacy NULL categories (duplicate category chips).
+        const branchWhere = await getOperationalBranchWhere(tenantId);
 
         const categories = await prisma.category.findMany({
             where: { tenantId, ...branchWhere },
