@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useOfflineData } from '@/hooks/use-offline-data';
+import { getPusherClient } from '@/lib/pusher';
 import { getLiveOrders } from '@/lib/offline/db';
 import { OfflineFallbackBanner } from '@/components/offline/offline-fallback-banner';
 import { ClientOrderCard } from './client-order-card';
@@ -32,11 +33,37 @@ export function CaptainOrdersClient({ tenantId }: { tenantId: string }) {
     await reloadLive();
   }, [refetch, reloadLive]);
 
-  // Poll every 10s so kitchen status changes appear (replaces the old AutoRefresh)
+  // Kitchen status changes arrive via Pusher (like the waiter board) with a
+  // slow 60s fallback poll — the old flat 10s poll hit the API 6×/min per tab.
+  const refreshRef = useRef(refreshAll);
+  refreshRef.current = refreshAll;
   useEffect(() => {
-    const id = setInterval(() => { refreshAll(); }, 10000);
-    return () => clearInterval(id);
-  }, [refreshAll]);
+    const debounceRef = { id: null as ReturnType<typeof setTimeout> | null };
+    const scheduleRefresh = () => {
+      if (debounceRef.id) clearTimeout(debounceRef.id);
+      debounceRef.id = setTimeout(() => refreshRef.current(), 300);
+    };
+
+    const pusher = getPusherClient();
+    const kitchenChannel = pusher?.subscribe(`tenant-${tenantId}-kitchen`);
+    kitchenChannel?.bind('order-updated', scheduleRefresh);
+    kitchenChannel?.bind('item-updated', scheduleRefresh);
+    const ordersChannel = pusher?.subscribe(`tenant-${tenantId}-orders`);
+    ordersChannel?.bind('order-updated', scheduleRefresh);
+
+    const id = setInterval(() => {
+      if (navigator.onLine) refreshRef.current();
+    }, 60_000);
+
+    return () => {
+      clearInterval(id);
+      if (debounceRef.id) clearTimeout(debounceRef.id);
+      kitchenChannel?.unbind('order-updated', scheduleRefresh);
+      kitchenChannel?.unbind('item-updated', scheduleRefresh);
+      ordersChannel?.unbind('order-updated', scheduleRefresh);
+      // channels stay subscribed — other captain components share them
+    };
+  }, [tenantId]);
 
   if (loading) {
     return (

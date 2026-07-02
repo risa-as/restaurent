@@ -43,6 +43,41 @@ function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// Durable rate limiting for AUTH endpoints (T15). The in-memory Map above is
+// per Edge instance — fine for the high-traffic general limits, but login/2FA
+// brute-force protection must survive across instances. When an Upstash-
+// compatible REST store is configured (Vercel KV / Upstash Redis env vars),
+// auth counters live there; otherwise we fall back to the per-instance Map.
+// Only auth paths pay the extra network hop — general limits stay in-memory.
+// ---------------------------------------------------------------------------
+const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+
+async function checkRateLimitDurable(key: string, limit: number, windowMs: number): Promise<boolean> {
+    if (!KV_URL || !KV_TOKEN) return checkRateLimit(key, limit, windowMs);
+    try {
+        // Fixed window: INCR + set expiry only when the key is new (NX).
+        const res = await fetch(`${KV_URL}/pipeline`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify([
+                ['INCR', key],
+                ['PEXPIRE', key, windowMs, 'NX'],
+            ]),
+        });
+        if (!res.ok) throw new Error(`KV ${res.status}`);
+        const data = (await res.json()) as Array<{ result?: number }>;
+        const count = Number(data?.[0]?.result ?? 0);
+        if (count < 1) throw new Error('KV bad INCR result');
+        return count <= limit;
+    } catch {
+        // Store unreachable → degrade to per-instance limiting rather than
+        // blocking all logins (availability over strictness for a limiter).
+        return checkRateLimit(key, limit, windowMs);
+    }
+}
+
 function getClientIP(req: NextRequest): string {
     return (
         req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
@@ -82,7 +117,7 @@ function rateLimitResponse(retryAfterMs: number): NextResponse {
 // Middleware
 // ---------------------------------------------------------------------------
 
-export default auth((req) => {
+export default auth(async (req) => {
     const ip = getClientIP(req);
     const pathname = req.nextUrl.pathname;
 
@@ -117,15 +152,16 @@ export default auth((req) => {
         // fall through to auth checks below
     } else {
         // 1. Strict limit on auth/login endpoints: 10 attempts / minute
+        //    (durable store when configured — survives multi-instance/serverless)
         if ((pathname.startsWith('/api/auth') || pathname === '/login') && !pathname.startsWith('/api/auth/2fa')) {
-            if (!checkRateLimit(`auth:${ip}`, 10, 60_000)) {
+            if (!(await checkRateLimitDurable(`auth:${ip}`, 10, 60_000))) {
                 return rateLimitResponse(60_000);
             }
         }
 
         // 1b. Separate 2FA limit: 20 attempts / 5 minutes
         if (pathname.startsWith('/api/auth/2fa')) {
-            if (!checkRateLimit(`2fa:${ip}`, 20, 5 * 60_000)) {
+            if (!(await checkRateLimitDurable(`2fa:${ip}`, 20, 5 * 60_000))) {
                 return rateLimitResponse(5 * 60_000);
             }
         }
